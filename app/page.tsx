@@ -36,7 +36,7 @@ export default function LoginPage() {
         </div>
 
         <h1 className="mb-3 text-4xl font-black tracking-tight text-slate-900">
-          VORA<span className="text-rose-600">.</span>
+          VORA<span className="text-rose-600"></span>
         </h1>
         
         {/* Nuevo Copy: Enfocado en velocidad de gestión, no solo en citas */}
