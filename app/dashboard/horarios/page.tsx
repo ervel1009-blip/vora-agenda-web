@@ -99,7 +99,7 @@ const handleSave = async () => {
         const { data: templateData } = await supabase
             .from('ai_prompts')
             .select('system_prompt')
-            .eq('business_type', orgData.business_type)
+            .eq('business_type', orgData?.business_type)
             .eq('slug', 'main_assistant')
             .eq('is_active', true)
             .single()
