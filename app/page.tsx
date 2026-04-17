@@ -24,31 +24,31 @@ export default function LoginPage() {
   }
 
   return (
-    // Fondo con un degradado sutil y moderno
-    <div className="flex min-h-screen flex-col items-center justify-center bg-[radial-gradient(circle_at_top_left,_var(--tw-gradient-stops))] from-rose-50 via-white to-slate-50 p-6">
+    // Cambiamos el fondo a un tono ligeramente más oscuro para que la tarjeta resalte
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
       
-      <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] bg-white/80 backdrop-blur-xl p-10 text-center shadow-[0_20px_50px_rgba(0,0,0,0.05)] border border-white">
+      {/* Tarjeta con sombra definida y borde sutil */}
+      <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
         
-        {/* Badge de estado (opcional, da sensación de app activa) */}
         <div className="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-600 mb-6">
           <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse"></span>
-          VORA v2.0 Live
+          VORA Suite Live
         </div>
 
         <h1 className="mb-3 text-4xl font-black tracking-tight text-slate-900">
           VORA<span className="text-rose-600">.</span>
         </h1>
         
-        <p className="mb-10 text-base text-slate-500 leading-relaxed px-4">
-          La asistente de IA que agenda tus citas de WhatsApp en <span className="font-bold text-slate-800">3 minutos.</span>
+        {/* Nuevo Copy: Enfocado en velocidad de gestión, no solo en citas */}
+        <p className="mb-10 text-base text-slate-500 leading-relaxed px-2">
+          La IA que gestiona tu negocio y agenda tus citas por WhatsApp <span className="font-bold text-rose-600">al instante.</span>
         </p>
 
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 py-4 px-6 text-sm font-bold text-white transition-all hover:bg-slate-800 hover:shadow-2xl hover:-translate-y-1 active:scale-95 disabled:opacity-50"
+          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 py-4 px-6 text-sm font-bold text-white transition-all hover:bg-black hover:shadow-2xl active:scale-95 disabled:opacity-50"
         >
-          {/* Icono de Google con fondo blanco para que resalte en el botón oscuro */}
           <div className="rounded-lg bg-white p-1">
             <svg className="h-4 w-4" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
@@ -57,18 +57,20 @@ export default function LoginPage() {
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
           </div>
-          {isLoading ? 'Abriendo Google...' : 'Empieza tu prueba gratis'}
+          {isLoading ? 'Conectando...' : 'Comenzar ahora'}
         </button>
 
         <p className="mt-8 text-[11px] text-slate-400">
-          Al continuar, aceptas nuestros <a href="/terminos" className="underline hover:text-slate-600">Términos</a> y <a href="/privacidad" className="underline hover:text-slate-600">Privacidad</a>.
+          Potencia tu salón o clínica con la tecnología de <span className="font-semibold">Artemix S.A.</span>
         </p>
       </div>
 
-      {/* Trust Badge Guate */}
-      <div className="mt-10 flex items-center gap-2 opacity-50 grayscale hover:grayscale-0 transition-all cursor-default">
-        <span className="text-xs font-semibold text-slate-500 uppercase tracking-widest">Proudly made in</span>
-        <span className="text-lg">🇬🇹</span>
+      <div className="mt-10 flex flex-col items-center gap-2 opacity-40">
+        <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">
+          <a href="/privacidad" className="hover:text-rose-600 transition">Privacidad</a>
+          <span className="text-slate-300">•</span>
+          <a href="/terminos" className="hover:text-rose-600 transition">Términos</a>
+        </div>
       </div>
     </div>
   )
