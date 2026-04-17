@@ -1,15 +1,31 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  /* Opciones de configuración */
   typescript: {
-    // 🚩 Esto ignora los errores de tipos para que el build termine exitosamente en Vercel
+    // 🚩 IMPORTANTE: Ignora los errores de tipos de TypeScript durante el build en Vercel.
     ignoreBuildErrors: true,
   },
   eslint: {
-    // 🚩 Esto ignora advertencias de formato durante el despliegue
+    // 🚩 Ignora los errores de ESLint durante el proceso de construcción.
     ignoreDuringBuilds: true,
   },
+  
+  // 🚀 SOLUCIÓN BRILLANTE: Redirección Automática
+  // Esto hace que tu URL principal (/) envíe al usuario directamente a la suscripción.
+  async redirects() {
+    return [
+      {
+        source: '/',
+        destination: '/dashboard/suscripcion',
+        permanent: false, // Usamos false mientras estamos en desarrollo/pruebas
+      },
+    ];
+  },
+
+  experimental: {
+    // Configuraciones adicionales si fueran necesarias
+  }
 };
 
 export default nextConfig;
