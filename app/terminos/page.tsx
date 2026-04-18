@@ -54,7 +54,7 @@ export default function TermsPage() {
       </section>
 
       <footer className="mt-20 pt-10 border-t border-slate-100 text-sm text-slate-400 text-center">
-        Artemix S.A. - San José Pinula, Guatemala
+        Artemix S.A. - Guatemala.
       </footer>
     </div>
   );
