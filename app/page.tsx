@@ -24,34 +24,34 @@ export default function LoginPage() {
   }
 
   return (
-    // Fondo en un gris muy tenue para que la tarjeta resalte
-    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
+    // Fondo Slate-100 para consistencia total con la página de suscripción
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6 font-sans">
       
-      {/* Tarjeta con sombra definida y borde sutil */}
-      <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
+      {/* Tarjeta con sombra profunda y bordes redondeados (estilo 40px/48px) */}
+      <div className="w-full max-w-md overflow-hidden rounded-[40px] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
         
-        {/* Badge superior en tono corinto claro */}
-        <div className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-red-900 mb-6">
-          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-red-800 animate-pulse"></span>
+        {/* Badge superior en Corinto tenue (red-50) */}
+        <div className="inline-flex items-center rounded-full bg-red-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-red-900 mb-8">
+          <span className="mr-2 h-1.5 w-1.5 rounded-full bg-red-800 animate-pulse"></span>
           VORA Suite Live
         </div>
 
-        <h1 className="mb-3 text-4xl font-black tracking-tight text-slate-900">
-          VORA SUITE<span className="text-red-900">.</span>
+        <h1 className="mb-4 text-4xl md:text-5xl font-black tracking-tighter text-slate-900">
+          VORA <span className="text-red-900">SUITE</span>
         </h1>
         
-        <p className="mb-10 text-base text-slate-500 leading-relaxed px-2">
-          La IA que gestiona tu negocio y agenda tus citas por WhatsApp <span className="font-bold text-red-900">al instante.</span>
+        <p className="mb-10 text-base text-slate-500 leading-relaxed px-2 font-medium">
+          La IA que gestiona tu negocio y agenda tus citas por WhatsApp al instante.
         </p>
 
-        {/* Botón principal en color Corinto (red-950) */}
+        {/* Botón principal en Corinto Profundo (red-950) para máximo contraste */}
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-red-950 py-4 px-6 text-sm font-bold text-white transition-all hover:bg-red-900 hover:shadow-2xl active:scale-95 disabled:opacity-50"
+          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-red-950 py-5 px-6 text-lg font-black text-white transition-all hover:bg-red-900 hover:shadow-2xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl"
         >
           <div className="rounded-lg bg-white p-1">
-            <svg className="h-4 w-4" viewBox="0 0 24 24">
+            <svg className="h-5 w-5" viewBox="0 0 24 24">
               <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
               <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
               <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
@@ -61,16 +61,17 @@ export default function LoginPage() {
           {isLoading ? 'Conectando...' : 'Comenzar ahora'}
         </button>
 
-        <p className="mt-8 text-[11px] text-slate-400">
-          Potencia tu salón o clínica con la tecnología de <span className="font-semibold text-slate-600 underline decoration-red-900/30">Artemix S.A.</span>
+        <p className="mt-10 text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+          Tecnología de <span className="text-red-900/40">Artemix S.A.</span>
         </p>
       </div>
 
-      <div className="mt-10 flex flex-col items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
-        <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          <a href="/privacidad" className="hover:text-red-900 transition">Privacidad</a>
-          <span className="text-slate-300">•</span>
-          <a href="/terminos" className="hover:text-red-900 transition">Términos</a>
+      {/* Enlaces legales con hover en Corinto acento (red-900) */}
+      <div className="mt-12 flex flex-col items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
+        <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+          <a href="/privacidad" className="hover:text-red-900 transition-colors">Privacidad</a>
+          <span className="text-slate-300">|</span>
+          <a href="/terminos" className="hover:text-red-900 transition-colors">Términos</a>
         </div>
       </div>
     </div>
