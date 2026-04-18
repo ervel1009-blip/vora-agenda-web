@@ -24,31 +24,31 @@ export default function LoginPage() {
   }
 
   return (
-    // Fondo Slate-100 para consistencia total con la página de suscripción
+    // Fondo limpio para que el Corinto resalte
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6 font-sans">
       
-      {/* Tarjeta con sombra profunda y bordes redondeados (estilo 40px/48px) */}
-      <div className="w-full max-w-md overflow-hidden rounded-[40px] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
+      {/* Tarjeta con bordes extra redondeados como en tu captura */}
+      <div className="w-full max-w-md overflow-hidden rounded-[48px] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
         
-        {/* Badge superior en Corinto tenue (red-50) */}
-        <div className="inline-flex items-center rounded-full bg-red-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-red-900 mb-8">
-          <span className="mr-2 h-1.5 w-1.5 rounded-full bg-red-800 animate-pulse"></span>
+        {/* Badge superior con el Corinto exacto de la imagen */}
+        <div className="inline-flex items-center rounded-full bg-rose-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rose-700 mb-8">
+          <span className="mr-2 h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse"></span>
           VORA Suite Live
         </div>
 
         <h1 className="mb-4 text-4xl md:text-5xl font-black tracking-tighter text-slate-900">
-          VORA <span className="text-red-900">SUITE</span>
+          VORA <span className="text-rose-700 uppercase">Suite</span>
         </h1>
         
         <p className="mb-10 text-base text-slate-500 leading-relaxed px-2 font-medium">
           La IA que gestiona tu negocio y agenda tus citas por WhatsApp al instante.
         </p>
 
-        {/* Botón principal en Corinto Profundo (red-950) para máximo contraste */}
+        {/* BOTÓN: Usando el Corinto exacto de la tarjeta de Checkout de tu imagen */}
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-red-950 py-5 px-6 text-lg font-black text-white transition-all hover:bg-red-900 hover:shadow-2xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl"
+          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-rose-700 py-5 px-6 text-lg font-black text-white transition-all hover:bg-rose-800 hover:shadow-2xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl"
         >
           <div className="rounded-lg bg-white p-1">
             <svg className="h-5 w-5" viewBox="0 0 24 24">
@@ -62,16 +62,15 @@ export default function LoginPage() {
         </button>
 
         <p className="mt-10 text-[11px] text-slate-400 font-bold uppercase tracking-widest">
-          Tecnología de <span className="text-red-900/40">Artemix S.A.</span>
+          Tecnología de <span className="text-rose-700/50">Artemix S.A.</span>
         </p>
       </div>
 
-      {/* Enlaces legales con hover en Corinto acento (red-900) */}
       <div className="mt-12 flex flex-col items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
         <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
-          <a href="/privacidad" className="hover:text-red-900 transition-colors">Privacidad</a>
+          <a href="/privacidad" className="hover:text-rose-700 transition-colors">Privacidad</a>
           <span className="text-slate-300">|</span>
-          <a href="/terminos" className="hover:text-red-900 transition-colors">Términos</a>
+          <a href="/terminos" className="hover:text-rose-700 transition-colors">Términos</a>
         </div>
       </div>
     </div>
