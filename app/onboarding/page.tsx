@@ -95,14 +95,14 @@ const handleSelectNiche = async (nicheId: string) => {
             name: `VORA - ${nicheId.toUpperCase()}`, // Campo NOT NULL
             owner_email: session.user.email,
             business_type: nicheId,
+            subscription_tier: 'starter', // ✨ AGREGA ESTA LÍNEA AQUÍ
             tax_id: 'CF', // Campo NOT NULL
             whatsapp_phone_id: '931581660032728', // Campo NOT NULL
             allowed_modules: ['vora-clinica'], // Campo NOT NULL
             google_refresh_token: session.provider_refresh_token, //
             chat_context: { 
               // 🧠 CLAVE: Si masterPrompt es null, usamos un fallback que SÍ tenga etiquetas.
-              // Esto evita que el Paso 3 se quede sin nada que reemplazar.
-              system_prompt: masterPrompt?.system_prompt || "Eres la asistente virtual de {{name}}. Ayudo a agendar citas. Mis servicios son: {{services}} en moneda {{currency}}. Atiendo en: {{hours}}.", 
+            system_prompt: masterPrompt?.system_prompt || "Eres la asistente virtual de {{name}}. Ayudo a agendar citas. Mis servicios son: {{services}} en moneda {{currency}}. Atiendo en: {{hours}}.", 
               business_niche: nicheId 
             }
           }, { onConflict: 'owner_id' });
