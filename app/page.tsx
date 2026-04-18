@@ -24,31 +24,31 @@ export default function LoginPage() {
   }
 
   return (
-    // Cambiamos el fondo a un tono ligeramente más oscuro para que la tarjeta resalte
+    // Fondo en un gris muy tenue para que la tarjeta resalte
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
       
       {/* Tarjeta con sombra definida y borde sutil */}
       <div className="w-full max-w-md overflow-hidden rounded-[2.5rem] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
         
-        <div className="inline-flex items-center rounded-full bg-rose-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-rose-600 mb-6">
-          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse"></span>
+        {/* Badge superior en tono corinto claro */}
+        <div className="inline-flex items-center rounded-full bg-red-50 px-3 py-1 text-[10px] font-bold uppercase tracking-wider text-red-900 mb-6">
+          <span className="mr-1.5 h-1.5 w-1.5 rounded-full bg-red-800 animate-pulse"></span>
           VORA Suite Live
         </div>
 
-        
         <h1 className="mb-3 text-4xl font-black tracking-tight text-slate-900">
-         VORA SUITE<span className="text-rose-600">.</span>
+          VORA SUITE<span className="text-red-900">.</span>
         </h1>
         
-        {/* Nuevo Copy: Enfocado en velocidad de gestión, no solo en citas */}
         <p className="mb-10 text-base text-slate-500 leading-relaxed px-2">
-          La IA que gestiona tu negocio y agenda tus citas por WhatsApp <span className="font-bold text-rose-600">al instante.</span>
+          La IA que gestiona tu negocio y agenda tus citas por WhatsApp <span className="font-bold text-red-900">al instante.</span>
         </p>
 
+        {/* Botón principal en color Corinto (red-950) */}
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
-          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-slate-900 py-4 px-6 text-sm font-bold text-white transition-all hover:bg-black hover:shadow-2xl active:scale-95 disabled:opacity-50"
+          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-red-950 py-4 px-6 text-sm font-bold text-white transition-all hover:bg-red-900 hover:shadow-2xl active:scale-95 disabled:opacity-50"
         >
           <div className="rounded-lg bg-white p-1">
             <svg className="h-4 w-4" viewBox="0 0 24 24">
@@ -62,15 +62,15 @@ export default function LoginPage() {
         </button>
 
         <p className="mt-8 text-[11px] text-slate-400">
-          Potencia tu salón o clínica con la tecnología de <span className="font-semibold">Artemix S.A.</span>
+          Potencia tu salón o clínica con la tecnología de <span className="font-semibold text-slate-600 underline decoration-red-900/30">Artemix S.A.</span>
         </p>
       </div>
 
-      <div className="mt-10 flex flex-col items-center gap-2 opacity-40">
+      <div className="mt-10 flex flex-col items-center gap-2 opacity-40 hover:opacity-100 transition-opacity">
         <div className="flex gap-4 text-[10px] font-bold uppercase tracking-widest text-slate-500">
-          <a href="/privacidad" className="hover:text-rose-600 transition">Privacidad</a>
+          <a href="/privacidad" className="hover:text-red-900 transition">Privacidad</a>
           <span className="text-slate-300">•</span>
-          <a href="/terminos" className="hover:text-rose-600 transition">Términos</a>
+          <a href="/terminos" className="hover:text-red-900 transition">Términos</a>
         </div>
       </div>
     </div>
