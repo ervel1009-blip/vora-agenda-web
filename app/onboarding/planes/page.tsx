@@ -1,5 +1,5 @@
 'use client'
-
+import Script from 'next/script' // Importa esto arriba
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
@@ -137,6 +137,29 @@ export default function PlanesPage() {
       </div>
     )
   }
+
+
+
+return (
+  <>
+    {/* vConsole para debuggear en el celular */}
+    <Script 
+      src="https://unpkg.com/vconsole@latest/dist/vconsole.min.js" 
+      strategy="afterInteractive"
+      onLoad={() => {
+        new (window as any).VConsole();
+      }}
+    />
+
+    <div className="min-h-screen bg-slate-50 ...">
+      {/* Todo tu código de diseño original aquí */}
+      <OnboardingProgress currentStep={6} />
+      {/* ... */}
+    </div>
+  </>
+)
+
+
 
   return (
     <div className="min-h-screen bg-slate-50 p-6 md:p-12 flex flex-col items-center justify-center font-sans">
