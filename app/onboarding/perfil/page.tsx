@@ -3,29 +3,34 @@
 import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-// 🚩 Importación del componente global
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
 
 export default function PerfilNegocioPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(false)
+  const [isLoading, setIsLoading] = useState(true) // Iniciamos en true para el Portero
   const [countries, setCountries] = useState<any[]>([])
   
-  // 🚩 Estado dinámico: Sin valores quemados para soportar cualquier país
   const [form, setForm] = useState({
     owner_name: '',
     name: '',
     public_phone: '',
-    address: '', // 🚩 Campo para {{address}}
+    address: '', 
     currency_symbol: '',
     timezone: '',
     country_code: ''
   })
 
-  // --- LÓGICA DE CARGA ---
+  // --- 🚪 EL PORTERO + CARGA DE DATOS ---
   useEffect(() => {
     const fetchInitialData = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/')
+        return
+      }
+
       // 1. Cargar lista de países
       const { data: countriesData } = await supabase
         .from('countries')
@@ -35,41 +40,55 @@ export default function PerfilNegocioPage() {
       
       if (countriesData) setCountries(countriesData)
 
-      // 2. Cargar datos actuales de la organización si ya existen (Persistencia)
-      const { data: { user } } = await supabase.auth.getUser()
-      if (user) {
-        const { data: org } = await supabase
-          .from('organizations')
-          .select('*')
-          .eq('owner_id', user.id)
-          .single()
+      // 2. EL PORTERO: Validar estado de la organización
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('owner_id', session.user.id)
+        .single()
 
-        if (org) {
+      if (!org?.business_type) {
+        router.push('/onboarding') // No ha hecho el paso 1
+        return
+      }
 
+      if (!org?.google_calendar_id) {
+        router.push('/onboarding/calendario') // No ha hecho el paso 2
+        return
+      }
+
+      // 🔎 Si YA tiene teléfono y dirección, significa que ya pasó por aquí
+      if (org.public_phone && org.address) {
+        console.log("🚀 Perfil ya completado. Enviando al siguiente paso...");
+        router.push('/dashboard/horarios')
+        return
+      }
+
+      // 3. Cargar datos para el formulario si existen
+      if (org) {
         const { data: member } = await supabase
           .from('team_members_v_nexus')
           .select('name')
           .eq('organization_id', org.id)
-          .eq('role', 'manager') // Buscamos específicamente al encargado
+          .eq('role', 'manager')
           .maybeSingle()
 
-          setForm({
-            owner_name: member?.name || '', 
-            name: org.name || '',
-            public_phone: org.public_phone || '',
-            owner_phone: org.public_phone || '',
-            address: org.address || '',
-            currency_symbol: org.currency_symbol || 'Q',
-            timezone: org.timezone || 'America/Guatemala',
-            country_code: org.country_code || 'GT'
-          })
-        }
+        setForm({
+          owner_name: member?.name || '', 
+          name: org.name || '',
+          public_phone: org.public_phone || '',
+          address: org.address || '',
+          currency_symbol: org.currency_symbol || 'Q',
+          timezone: org.timezone || 'America/Guatemala',
+          country_code: org.country_code || 'GT'
+        })
       }
+      
+      setIsLoading(false)
     }
     fetchInitialData()
-  }, [supabase])
+  }, [supabase, router])
 
-  // 🚩 Manejo dinámico de País, Moneda y Timezone (Canadá, GT, etc.)
   const handleCountryChange = (code: string) => {
     const country = countries.find(c => c.code === code)
     if (country) {
@@ -77,7 +96,7 @@ export default function PerfilNegocioPage() {
         ...form,
         country_code: code,
         currency_symbol: country.currency_symbol,
-        timezone: country.timezone_default || 'UTC' // Dinámico desde la DB
+        timezone: country.timezone_default || 'UTC'
       })
     }
   }
@@ -89,7 +108,6 @@ export default function PerfilNegocioPage() {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("No hay usuario autenticado")
 
-      // 🚩 PASO 1: Obtener info actual para evitar borrar Horarios o Servicios
       const { data: orgData } = await supabase
         .from('organizations')
         .select('id, business_type, chat_context')
@@ -106,7 +124,6 @@ export default function PerfilNegocioPage() {
         .select('*')
         .eq('org_id', orgData.id)
 
-      // 🚩 PASO 2: Traer la PLANTILLA MAESTRA
       const { data: templateData } = await supabase
         .from('ai_prompts')
         .select('system_prompt')
@@ -117,7 +134,6 @@ export default function PerfilNegocioPage() {
 
       let systemPrompt = templateData?.system_prompt || "Asistente de {{name}}. Moneda: {{currency}}."
 
-      // 🚩 PASO 3: Generar resúmenes de datos que ya podrían existir
       const scheduleSummary = hoursData?.length > 0 
         ? hoursData.map(h => `${["Dom", "Lun", "Mar", "Mié", "Jue", "Vie", "Sáb"][h.day_of_week]}: ${h.is_closed ? 'Cerrado' : `${h.open_time.substring(0,5)} a ${h.close_time.substring(0,5)}`}`).join(', ')
         : "{{hours}}";
@@ -126,7 +142,6 @@ export default function PerfilNegocioPage() {
         ? servicesData.map(s => `${s.service_name} (${form.currency_symbol}${s.price})`).join(', ')
         : "{{services}}";
 
-      // 🚩 PASO 4: Hidratación TOTAL (Sin afectar lo viejo)
       const hydratedPrompt = systemPrompt
         .replace(/{{name}}/g, form.name)
         .replace(/{{currency}}/g, form.currency_symbol)
@@ -134,7 +149,6 @@ export default function PerfilNegocioPage() {
         .replace(/{{hours}}/g, scheduleSummary) 
         .replace(/{{services}}/g, servicesSummary);
 
-      // 🚩 PASO 5: Actualizar la organización
       const { error } = await supabase
         .from('organizations')
         .update({
@@ -153,25 +167,20 @@ export default function PerfilNegocioPage() {
         })
         .eq('owner_id', user.id)
 
-    
+      const { error: teamError } = await supabase
+        .from('team_members_v_nexus')
+        .upsert({
+          organization_id: orgData.id,
+          name: form.owner_name,
+          phone: form.public_phone,
+          role: 'manager',
+          can_self_approve: true,
+          is_active: true
+        }, { onConflict: 'phone' });
 
-// 🚩 PASO 6: Registro automático del Propietario como primer Miembro del Equipo
-const { error: teamError } = await supabase
-  .from('team_members_v_nexus')
-  .upsert({
-    organization_id: orgData.id,
-    name: form.owner_name,
-    phone: form.public_phone,
-    role: 'manager', // Rol por defecto como solicitaste
-    can_self_approve: true, // El manager usualmente tiene este poder
-    is_active: true
-  }, { onConflict: 'phone' }); // 🛡️ Evita duplicados si el usuario edita su perfil
-
-   if (teamError) {
-      console.error("⚠️ Error sutil al registrar miembro del equipo:", teamError.message);
-    }
-
+      if (teamError) console.error("⚠️ Error sutil al registrar miembro del equipo:", teamError.message);
       if (error) throw error
+
       router.push('/dashboard/horarios')
     } catch (error: any) {
       console.error("❌ Error crítico:", error.message)
@@ -179,6 +188,15 @@ const { error: teamError } = await supabase
     } finally {
       setIsLoading(false)
     }
+  }
+
+  // Si está cargando el portero, mostramos el spinner para no parpadear el diseño
+  if (isLoading && !form.name) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
+      </div>
+    )
   }
 
   return (
@@ -198,7 +216,6 @@ const { error: teamError } = await supabase
         </header>
 
         <div className="space-y-7">
-          {/* País */}
           <div className="space-y-2.5 relative group">
             <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">País de operación</label>
             <div className="relative">
@@ -218,19 +235,17 @@ const { error: teamError } = await supabase
             </div>
           </div>
           
-         {/* Nombre del Propietario */}
-<div className="space-y-2">
-  <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tu Nombre (Propietario)</label>
-  <input 
-    className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600 transition-all font-bold placeholder:text-slate-300"
-    placeholder="Ej. Roberto Velasquez"
-    value={form.owner_name || ''}
-    onChange={e => setForm({...form, owner_name: e.target.value})}
-  />
-</div>
+          <div className="space-y-2">
+            <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tu Nombre (Propietario)</label>
+            <input 
+              className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600 transition-all font-bold placeholder:text-slate-300"
+              placeholder="Ej. Roberto Velasquez"
+              value={form.owner_name || ''}
+              onChange={e => setForm({...form, owner_name: e.target.value})}
+            />
+          </div>
 
-           <div className="grid gap-5">
-            {/* Nombre del Negocio */}
+          <div className="grid gap-5">
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Nombre del Negocio</label>
               <input 
@@ -241,7 +256,6 @@ const { error: teamError } = await supabase
               />
             </div>
 
-            {/* 🚩 NUEVO CAMPO: Dirección Física */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Dirección Física (Logística)</label>
               <input 
@@ -252,7 +266,6 @@ const { error: teamError } = await supabase
               />
             </div>
 
-            {/* WhatsApp Dueño */}
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tu WhatsApp (Dueño)</label>
               <input 
@@ -264,11 +277,10 @@ const { error: teamError } = await supabase
             </div>
           </div>
 
-          {/* Badge de Moneda y Timezone */}
           <div className="bg-rose-50 border border-rose-100 rounded-2xl p-5 flex justify-between items-center mt-3">
             <div className="flex flex-col gap-1">
-               <span className="text-[10px] text-rose-900 font-black uppercase tracking-wider">Configuración Local</span>
-               <span className="text-[10px] text-slate-400 font-bold">{form.timezone || 'Zona Horaria'}</span>
+                <span className="text-[10px] text-rose-900 font-black uppercase tracking-wider">Configuración Local</span>
+                <span className="text-[10px] text-slate-400 font-bold">{form.timezone || 'Zona Horaria'}</span>
             </div>
             <span className="text-3xl font-black text-rose-950 tracking-tighter">{form.currency_symbol || '--'}</span>
           </div>
