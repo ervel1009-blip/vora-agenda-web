@@ -5,11 +5,20 @@ import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
 
+// Mapeo de códigos telefónicos para los países configurados en tu tabla
+const PHONE_CODES: { [key: string]: string } = {
+  AR: '54', BO: '591', BR: '55', CA: '1', CH: '41', CL: '56', CO: '57', 
+  CR: '506', DE: '49', DO: '1', EC: '593', ES: '34', FR: '33', GB: '44', 
+  GT: '502', HN: '504', IT: '39', MX: '52', NI: '505', PA: '507', PE: '51', 
+  PT: '351', PY: '595', SV: '503', US: '1', UY: '598'
+};
+
 export default function PerfilNegocioPage() {
   const supabase = createClient()
   const router = useRouter()
   const [isLoading, setIsLoading] = useState(true) 
   const [countries, setCountries] = useState<any[]>([])
+  const [phonePrefix, setPhonePrefix] = useState('')
   
   const [form, setForm] = useState({
     owner_name: '',
@@ -21,17 +30,11 @@ export default function PerfilNegocioPage() {
     country_code: ''
   })
 
-  // --- 🚪 EL PORTERO LINEAL (Paso 3/7) ---
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        router.push('/')
-        return
-      }
+      if (!session) { router.push('/'); return; }
 
-      // 1. Cargar lista de países
       const { data: countriesData } = await supabase
         .from('countries')
         .select('*')
@@ -40,36 +43,20 @@ export default function PerfilNegocioPage() {
       
       if (countriesData) setCountries(countriesData)
 
-      // 2. EL PORTERO: Validar estado de la organización
       const { data: org } = await supabase
         .from('organizations')
         .select('*')
         .eq('owner_id', session.user.id)
         .single()
 
-      // Validar hacia atrás (Paso 1)
-      if (!org?.business_type) {
-        console.log("⚠️ Falta giro de negocio. Regresando al Paso 1...");
-        router.push('/onboarding')
-        return
-      }
+      if (!org?.business_type) { router.push('/onboarding'); return; }
+      if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
 
-      // Validar hacia atrás (Paso 2)
-      if (!org?.google_calendar_id) {
-        console.log("⚠️ Falta calendario. Regresando al Paso 2...");
-        router.push('/dashboard/calendario') 
-        return
-      }
-
-      // 🚀 Validar hacia adelante: ¿Ya se completó este Paso 3?
-      // Si ya tiene teléfono y dirección, avanzamos exclusivamente al Paso 4 (Horarios)
       if (org.public_phone && org.address) {
-        console.log("✅ Perfil ya completado. Avanzando al Paso 4...");
-        router.push('/dashboard/horarios')
-        return
+        router.push('/dashboard/horarios');
+        return;
       }
 
-      // 3. Cargar datos para el formulario si existen (Persistencia)
       if (org) {
         const { data: member } = await supabase
           .from('team_members_v_nexus')
@@ -78,37 +65,58 @@ export default function PerfilNegocioPage() {
           .eq('role', 'manager')
           .maybeSingle()
 
+        const savedCountry = org.country_code || 'GT';
+        const prefix = PHONE_CODES[savedCountry] || '';
+        setPhonePrefix(prefix);
+
         setForm({
           owner_name: member?.name || '', 
           name: org.name || '',
-          public_phone: org.public_phone || '',
+          public_phone: org.public_phone || prefix, // Si ya tiene número, lo cargamos
           address: org.address || '',
           currency_symbol: org.currency_symbol || 'Q',
           timezone: org.timezone || 'America/Guatemala',
-          country_code: org.country_code || 'GT'
+          country_code: savedCountry
         })
       }
-      
       setIsLoading(false)
     }
     fetchInitialData()
   }, [supabase, router])
 
   const handleCountryChange = (code: string) => {
-    const country = countries.find(c => c.code === code)
+    const country = countries.find(c => c.code === code);
+    const newPrefix = PHONE_CODES[code] || '';
+    
     if (country) {
+      setPhonePrefix(newPrefix);
       setForm({
         ...form,
         country_code: code,
         currency_symbol: country.currency_symbol,
-        timezone: country.timezone_default || 'UTC'
+        timezone: country.timezone_default || 'UTC',
+        // Si el teléfono estaba vacío o solo tenía el prefijo anterior, lo actualizamos
+        public_phone: newPrefix 
       })
+    }
+  }
+
+  const handlePhoneChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const val = e.target.value.replace(/\D/g, ''); // Solo números
+    
+    // Evitar que el usuario borre el prefijo del país
+    if (val.startsWith(phonePrefix)) {
+      setForm({ ...form, public_phone: val });
+    } else if (val.length < phonePrefix.length) {
+      setForm({ ...form, public_phone: phonePrefix });
+    } else {
+      // Si intenta escribir algo que no empieza con el prefijo, lo forzamos
+      setForm({ ...form, public_phone: phonePrefix + val });
     }
   }
 
   const handleSaveProfile = async () => {
     setIsLoading(true)
-    
     try {
       const { data: { user } } = await supabase.auth.getUser()
       if (!user) throw new Error("No hay usuario autenticado")
@@ -119,7 +127,6 @@ export default function PerfilNegocioPage() {
         .eq('owner_id', user.id)
         .single()
 
-      // Obtenemos datos para hidratar el prompt (Lógica intacta)
       const { data: hoursData } = await supabase.from('operating_hours').select('*').eq('org_id', orgData.id)
       const { data: servicesData } = await supabase.from('services_config').select('*').eq('organization_id', orgData.id)
       const { data: templateData } = await supabase.from('ai_prompts').select('system_prompt').eq('business_type', orgData.business_type).eq('slug', 'main_assistant').eq('is_active', true).maybeSingle()
@@ -173,7 +180,6 @@ export default function PerfilNegocioPage() {
       if (teamError) console.error("⚠️ Error sutil al registrar miembro del equipo:", teamError.message);
       if (error) throw error
 
-      // Redirección lineal al Paso 4
       router.push('/dashboard/horarios')
     } catch (error: any) {
       console.error("❌ Error crítico:", error.message)
@@ -232,7 +238,7 @@ export default function PerfilNegocioPage() {
             <input 
               className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600 transition-all font-bold placeholder:text-slate-300"
               placeholder="Ej. Roberto Velasquez"
-              value={form.owner_name || ''}
+              value={form.owner_name}
               onChange={e => setForm({...form, owner_name: e.target.value})}
             />
           </div>
@@ -260,12 +266,21 @@ export default function PerfilNegocioPage() {
 
             <div className="space-y-2">
               <label className="text-[10px] font-black text-slate-500 uppercase tracking-widest ml-1">Tu WhatsApp (Dueño)</label>
-              <input 
-                className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600 transition-all font-bold placeholder:text-slate-300"
-                placeholder="50200000000"
-                value={form.public_phone}
-                onChange={e => setForm({...form, public_phone: e.target.value})}
-              />
+              <div className="relative flex items-center">
+                <span className="absolute left-5 text-rose-700 font-black text-lg">+{phonePrefix}</span>
+                <input 
+                  className={`w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 outline-none focus:border-rose-600 focus:ring-1 focus:ring-rose-600 transition-all font-bold placeholder:text-slate-300`}
+                  style={{ paddingLeft: `${(phonePrefix.length * 12) + 35}px` }}
+                  type="text"
+                  placeholder="00000000"
+                  value={form.public_phone.replace(phonePrefix, '')}
+                  onChange={(e) => {
+                    const onlyNums = e.target.value.replace(/\D/g, '');
+                    setForm({ ...form, public_phone: phonePrefix + onlyNums });
+                  }}
+                />
+              </div>
+              <p className="text-[9px] text-slate-400 font-bold ml-1 italic">Ingresa solo el número local, el código (+{phonePrefix}) es automático.</p>
             </div>
           </div>
 
@@ -280,7 +295,7 @@ export default function PerfilNegocioPage() {
           <div className="pt-6">
             <button 
               onClick={handleSaveProfile}
-              disabled={isLoading || !form.name || !form.public_phone || !form.address}
+              disabled={isLoading || !form.name || form.public_phone.length <= phonePrefix.length || !form.address}
               className="w-full bg-rose-700 bg-gradient-to-r from-rose-700 to-rose-600 text-white py-5 rounded-2xl font-black text-xl hover:bg-rose-800 transition-all active:scale-95 disabled:opacity-50 shadow-xl shadow-slate-200 flex items-center justify-center gap-3"
             >
               {isLoading ? (
