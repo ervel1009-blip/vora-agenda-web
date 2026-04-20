@@ -24,10 +24,13 @@ export default function SuscripcionPage() {
 
 // --- 🚪 EL PORTERO DEFINITIVO (Paso 7/7 - 100%) ---
   useEffect(() => {
-    const checkFinalIntegrity = async () => {
+    const checkStatus = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.user) { router.push('/'); return; }
+        if (!session?.user) {
+          router.push('/')
+          return
+        }
         setUser(session.user)
 
         const { data: org } = await supabase
@@ -36,35 +39,43 @@ export default function SuscripcionPage() {
           .eq('owner_id', session.user.id)
           .single()
 
-        // 🛡️ Validaciones de seguridad (Pasos 1 al 5)
+        // 1. Validaciones de Integridad Técnica (Pasos 1-5)
         if (!org?.business_type) { router.push('/onboarding'); return; }
         if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
         if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-        // 🚀 LÓGICA ANTI-LOOP:
-        // Si el estado es 'active', el usuario ya no pertenece al onboarding.
+        // 2. LÓGICA PARA ROMPER EL BUCLE
+        
+        // Caso A: Ya pagó o ya activó trial de 7 días. 
+        // No debe estar aquí. Se envía a la página principal del Dashboard.
         if (org.subscription_status === 'active') {
-          console.log("✅ Usuario activo. Enviando al Dashboard final...");
-          router.push('/dashboard/suscripcion'); 
+          console.log("✅ Suscripción activa. Redirigiendo al panel principal...");
+          router.push('/dashboard/calendario'); 
           return;
         }
 
-        // Si el estado es 'pending_payment', se queda aquí para hacer el checkout.
-        if (org) {
+        // Caso B: Estado 'pending_payment'.
+        // Es el estado esperado para esta página. Detenemos la carga y mostramos el Checkout.
+        if (org.subscription_status === 'pending_payment') {
           setOrgId(org.id)
           const dbTier = org.subscription_tier?.toLowerCase() || 'starter'
           setPlanTier(dbTier)
           setBillingCycle(org.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
+          setIsLoading(false); // <--- Aquí se permite ver la página
+          return;
         }
-        
-        setIsLoading(false) // Detiene el spinner y muestra la página de pago
+
+        // Caso C: No hay estado de suscripción.
+        // Significa que no ha pasado por la página de Planes. Regresa al paso 6.
+        console.log("⚠️ No se detectó plan seleccionado. Regresando a Planes...");
+        router.push('/onboarding/planes');
+
       } catch (err) {
-        console.error("Error en portero final:", err)
+        console.error("Error en el portero de suscripción:", err)
       }
     }
-    checkFinalIntegrity()
+    checkStatus()
   }, [supabase, router])
-
 
   const currentPlan = PRICING[planTier] || PRICING.starter
   const basePrice = billingCycle === 'monthly' ? currentPlan.monthly : currentPlan.yearly
