@@ -47,7 +47,7 @@ useEffect(() => {
       .eq('org_id', org.id)
 
     if (hoursData && hoursData.length > 0) {
-      router.push('/onboarding/servicios');
+      router.push('/dashboard/servicios');
       return;
     }
 
