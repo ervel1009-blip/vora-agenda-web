@@ -63,7 +63,7 @@ export default function PlanesPage() {
 
       // Si ya es 'active', ya terminó todo el onboarding.
       if (org.subscription_status === 'active') {
-        router.push('/dashboard/suscripcion'); 
+        router.push('/onboarding/suscripcion'); 
         return;
       }
 
