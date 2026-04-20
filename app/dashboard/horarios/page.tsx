@@ -86,7 +86,7 @@ export default function HorariosPage() {
         }
       }
       setLoading(false)
-
+   }
 
     fetchHoursAndCheck()
   }, [supabase, router])
