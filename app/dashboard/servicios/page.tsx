@@ -20,25 +20,23 @@ export default function ServiciosPage() {
   const router = useRouter()
   const [services, setServices] = useState<ServiceConfig[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(true) // Para el Portero
+  const [isLoading, setIsLoading] = useState(true) // Portero activo
   const [isLoadingAction, setIsLoadingAction] = useState(false)
   const [orgData, setOrgData] = useState<any>(null)
   
-  // 🚩 Nuevo: Control de visibilidad de precios
   const [showPricesOnChat, setShowPricesOnChat] = useState(true)
 
-  // 🚩 Estado del formulario mejorado
   const [form, setForm] = useState({
     service_name: '',
-    duration_hours: 1, // Separado para facilidad
-    duration_mins: 0,  // Separado para facilidad
-    price: '' as any,  // String para evitar el '0' pegajoso
+    duration_hours: 1, 
+    duration_mins: 0,  
+    price: '' as any,  
     description: '',
-    buffer_after_minutes: '' as any, // String para evitar el '0' pegajoso
+    buffer_after_minutes: '' as any, 
     category: 'General'
   })
 
-  // --- 🚪 EL PORTERO + CARGA ---
+  // --- 🚪 EL PORTERO + CARGA DE DATOS ---
   useEffect(() => {
     const fetchAndCheck = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -50,12 +48,12 @@ export default function ServiciosPage() {
         .eq('owner_id', session.user.id)
         .single()
 
-      // Validar integridad del camino
+      // 1. Validar pasos anteriores
       if (!org?.business_type) { router.push('/onboarding'); return; }
       if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
-      if (!org?.public_phone) { router.push('/onboarding/perfil'); return; }
+      if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-      // Validar si hay horarios (Paso 4)
+      // 2. Validar Paso 4 (Horarios)
       const { count: hoursCount } = await supabase
         .from('operating_hours')
         .select('*', { count: 'exact', head: true })
@@ -68,17 +66,25 @@ export default function ServiciosPage() {
 
       if (org) {
         setOrgData(org)
-        // Cargar preferencia de precios si existe en chat_context
         if (org.chat_context?.show_prices !== undefined) {
           setShowPricesOnChat(org.chat_context.show_prices)
         }
         
-        const { data } = await supabase
+        // 3. CARGA DE SERVICIOS + SALTO INTELIGENTE
+        const { data: servicesData } = await supabase
           .from('services_config')
           .select('*')
           .eq('organization_id', org.id)
           .order('created_at', { ascending: false })
-        setServices(data || [])
+
+        if (servicesData && servicesData.length > 0) {
+          // 🚀 SALTO: Si ya hay servicios, vamos al siguiente paso
+          console.log("✅ Servicios detectados. Saltando al paso de Planes...");
+          router.push('/onboarding/planes')
+          return
+        }
+        
+        setServices(servicesData || [])
       }
       setIsLoading(false)
     }
@@ -89,7 +95,6 @@ export default function ServiciosPage() {
     setIsLoadingAction(true)
     if (!orgData) return
 
-    // 🚩 Cálculo matemático: Horas a Minutos
     const totalMinutes = (form.duration_hours * 60) + form.duration_mins;
 
     const { data, error } = await supabase
@@ -124,7 +129,6 @@ export default function ServiciosPage() {
     setIsLoadingAction(true);
 
     try {
-        // 🚩 PASO 1: Formatear catálogo respetando el Toggle de precios
         const servicesSummary = services
             .map(s => {
                 const priceInfo = showPricesOnChat ? ` (${orgData.currency_symbol}${s.price})` : '';
@@ -132,9 +136,6 @@ export default function ServiciosPage() {
             })
             .join(', ');
 
-        const fullAddress = [orgData.address, orgData.municipality, orgData.department].filter(Boolean).join(', ') || "Dirección no especificada";
-
-        // 🚩 PASO 2: Traer plantilla y horarios
         const { data: templateData } = await supabase.from('ai_prompts').select('system_prompt').eq('business_type', orgData.business_type).eq('slug', 'main_assistant').eq('is_active', true).single();
         const { data: hoursData } = await supabase.from('operating_hours').select('*').eq('org_id', orgData.id);
 
@@ -143,23 +144,21 @@ export default function ServiciosPage() {
             return `${dayName}: ${h.is_closed ? 'Cerrado' : `${h.open_time.substring(0,5)} a ${h.close_time.substring(0,5)}`}`;
         }).join(', ');
 
-        // 🚩 PASO 3: Hidratación Final
         let finalPrompt = templateData?.system_prompt || "";
         finalPrompt = finalPrompt
             .replace(/{{name}}/g, orgData.name)
             .replace(/{{currency}}/g, orgData.currency_symbol)
-            .replace(/{{address}}/g, fullAddress)
+            .replace(/{{address}}/g, orgData.address)
             .replace(/{{hours}}/g, scheduleSummary)
             .replace(/{{services}}/g, servicesSummary);
 
-        // 🚩 PASO 4: Guardar con preferencia de visibilidad
         const { error: updateError } = await supabase
             .from('organizations')
             .update({
                 chat_context: {
                     ...orgData.chat_context,
                     system_prompt: finalPrompt,
-                    show_prices: showPricesOnChat // Guardamos la preferencia
+                    show_prices: showPricesOnChat
                 }
             })
             .eq('id', orgData.id);
@@ -191,7 +190,6 @@ export default function ServiciosPage() {
         </h1>
         <p className="text-slate-600 mt-3 font-medium text-lg">Configura lo que VORA ofrecerá a tus clientes.</p>
 
-        {/* 🚩 NUEVO: Toggle de Visibilidad de Precios */}
         <div className="mt-6 flex items-center gap-4 bg-white px-6 py-3 rounded-full border border-slate-100 shadow-sm">
             <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">¿Vora debe mostrar precios?</span>
             <button 
@@ -263,7 +261,6 @@ export default function ServiciosPage() {
                   value={form.service_name} onChange={e => setForm({...form, service_name: e.target.value})} placeholder="Ej. Manicura Completa" />
               </div>
               
-              {/* 🚩 REDISEÑO: Horas y Minutos */}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Horas</label>
@@ -287,34 +284,22 @@ export default function ServiciosPage() {
                 </div>
               </div>
 
-<div className="grid grid-cols-2 gap-4 items-end"> {/* 🚩 items-end mantiene los inputs alineados */}
-  <div className="space-y-1">
-    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block leading-tight">
-      Precio ({orgData?.currency_symbol || 'Q'})
-    </label>
-    <input 
-      type="number" 
-      className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-rose-700 font-black outline-none focus:border-rose-600 transition-all"
-      value={form.price} 
-      onChange={e => setForm({...form, price: e.target.value})} 
-      placeholder="0.00" 
-    />
-  </div>
-
-  <div className="space-y-1">
-    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block leading-tight">
-      Buffer / Limpieza <span className="text-rose-400/60">(min)</span>
-    </label>
-    <input 
-      type="number" 
-      className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-orange-600 font-bold outline-none focus:border-rose-600 transition-all"
-      value={form.buffer_after_minutes} 
-      onChange={e => setForm({...form, buffer_after_minutes: e.target.value})} 
-      placeholder="0" 
-    />
-  </div>
-</div>
-
+              <div className="grid grid-cols-2 gap-4 items-end">
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block leading-tight">
+                    Precio ({orgData?.currency_symbol || 'Q'})
+                  </label>
+                  <input type="number" className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-rose-700 font-black outline-none focus:border-rose-600 transition-all"
+                    value={form.price} onChange={e => setForm({...form, price: e.target.value})} placeholder="0.00" />
+                </div>
+                <div className="space-y-1">
+                  <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block leading-tight">
+                    Buffer / Limpieza <span className="text-rose-400/60">(min)</span>
+                  </label>
+                  <input type="number" className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-orange-600 font-bold outline-none focus:border-rose-600 transition-all"
+                    value={form.buffer_after_minutes} onChange={e => setForm({...form, buffer_after_minutes: e.target.value})} placeholder="0" />
+                </div>
+              </div>
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Descripción</label>
@@ -324,7 +309,7 @@ export default function ServiciosPage() {
 
               <div className="flex gap-4 mt-8">
                 <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 font-black text-slate-400">Cancelar</button>
-                <button onClick={handleAddService} disabled={isLoadingAction || !form.service_name} className="flex-1 bg-rose-700 text-white py-4 rounded-2xl font-black">
+                <button onClick={handleAddService} disabled={isLoadingAction || !form.service_name} className="flex-1 bg-rose-700 text-white py-4 rounded-2xl font-black shadow-lg">
                   {isLoadingAction ? 'Guardando...' : 'Crear Servicio'}
                 </button>
               </div>
