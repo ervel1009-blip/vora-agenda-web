@@ -20,7 +20,7 @@ export default function ServiciosPage() {
   const router = useRouter()
   const [services, setServices] = useState<ServiceConfig[]>([])
   const [isModalOpen, setIsModalOpen] = useState(false)
-  const [isLoading, setIsLoading] = useState(true) // Portero activo
+  const [isLoading, setIsLoading] = useState(true) 
   const [isLoadingAction, setIsLoadingAction] = useState(false)
   const [orgData, setOrgData] = useState<any>(null)
   
@@ -36,7 +36,7 @@ export default function ServiciosPage() {
     category: 'General'
   })
 
-  // --- 🚪 EL PORTERO + CARGA DE DATOS ---
+  // --- 🚪 EL PORTERO LINEAL (Paso 5/7) ---
   useEffect(() => {
     const fetchAndCheck = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -48,19 +48,20 @@ export default function ServiciosPage() {
         .eq('owner_id', session.user.id)
         .single()
 
-      // 1. Validar pasos anteriores
+      // 1. VALIDACIÓN HACIA ATRÁS (Cascada)
       if (!org?.business_type) { router.push('/onboarding'); return; }
-      if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
+      if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
       if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-      // 2. Validar Paso 4 (Horarios)
+      // Validar Paso 4: Horarios
       const { count: hoursCount } = await supabase
         .from('operating_hours')
         .select('*', { count: 'exact', head: true })
         .eq('org_id', org.id)
 
       if (!hoursCount || hoursCount === 0) {
-        router.push('/onboarding/horarios')
+        console.log("⚠️ Falta configurar horarios. Regresando al Paso 4...");
+        router.push('/dashboard/horarios')
         return
       }
 
@@ -70,7 +71,7 @@ export default function ServiciosPage() {
           setShowPricesOnChat(org.chat_context.show_prices)
         }
         
-        // 3. CARGA DE SERVICIOS + SALTO INTELIGENTE
+        // 2. VALIDACIÓN HACIA ADELANTE: ¿Ya tiene servicios?
         const { data: servicesData } = await supabase
           .from('services_config')
           .select('*')
@@ -78,8 +79,8 @@ export default function ServiciosPage() {
           .order('created_at', { ascending: false })
 
         if (servicesData && servicesData.length > 0) {
-          // 🚀 SALTO: Si ya hay servicios, vamos al siguiente paso
-          console.log("✅ Servicios detectados. Saltando al paso de Planes...");
+          // 🚀 SALTO LINEAL: Avanzar al Paso 6 (Planes)
+          console.log("✅ Servicios detectados. Avanzando al Paso 6...");
           router.push('/onboarding/planes')
           return
         }
