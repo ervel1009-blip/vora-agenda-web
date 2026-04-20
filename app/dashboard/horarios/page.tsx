@@ -13,49 +13,70 @@ const DAYS = [
 export default function HorariosPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [loading, setLoading] = useState(true) // Iniciamos en true para el Portero
+  const [loading, setLoading] = useState(true) 
   const [orgId, setOrgId] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<{ [key: number]: { open: string, close: string, closed: boolean } }>({})
 
-// --- 🚪 PORTERO PASO 4 ---
-useEffect(() => {
-  const fetchHoursAndCheck = async () => {
-    const { data: { session } } = await supabase.auth.getSession()
-    if (!session) { router.push('/'); return; }
+  // --- 🚪 EL PORTERO LINEAL (Paso 4/7) ---
+  useEffect(() => {
+    const fetchHoursAndCheck = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/')
+        return
+      }
 
-    const { data: org } = await supabase
-      .from('organizations')
-      .select('*')
-      .eq('owner_id', session.user.id)
-      .single()
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('owner_id', session.user.id)
+        .single()
 
-    // FILTRO EN CASCADA (No permite saltos)
-    if (!org?.business_type) { router.push('/onboarding'); return; }
-    if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
-    
-    // Si falta el perfil (Paso 3), lo mandamos allá, NO al calendario
-    if (!org?.public_phone || !org?.address) {
-      console.log("⚠️ Falta perfil. Moviendo al Paso 3...");
-      router.push('/onboarding/perfil'); 
-      return;
+      // 1. Validar hacia atrás (Filtro en cascada)
+      if (!org?.business_type) { 
+        router.push('/onboarding'); 
+        return; 
+      }
+      if (!org?.google_calendar_id) { 
+        router.push('/dashboard/calendario'); 
+        return; 
+      }
+      
+      // Validar Paso 3: Perfil (Teléfono y Dirección)
+      if (!org?.public_phone || !org?.address) {
+        console.log("⚠️ Falta completar perfil. Regresando al Paso 3...");
+        router.push('/onboarding/perfil'); 
+        return;
+      }
+
+      // 2. Validar hacia adelante: ¿Ya tiene horarios configurados?
+      const { data: hoursData } = await supabase
+        .from('operating_hours')
+        .select('*')
+        .eq('org_id', org.id)
+
+      if (hoursData && hoursData.length > 0) {
+        // 🚀 SALTO LINEAL: Avanzar al Paso 5 (Servicios)
+        console.log("✅ Horarios detectados. Avanzando al Paso 5...");
+        router.push('/dashboard/servicios');
+        return;
+      }
+
+      // Si llegó aquí, preparamos la página para configuración
+      setOrgId(org.id);
+      
+      // Cargar defaults si no hay datos (primera vez)
+      const defaults: any = {}
+      DAYS.forEach(d => { 
+        defaults[d.id] = { open: '08:00:00', close: '17:00:00', closed: d.id === 0 } 
+      })
+      setSchedule(defaults)
+      
+      setLoading(false);
     }
-
-    // Si ya tiene horarios, saltamos al paso 5 (Servicios)
-    const { data: hoursData } = await supabase
-      .from('operating_hours')
-      .select('*')
-      .eq('org_id', org.id)
-
-    if (hoursData && hoursData.length > 0) {
-      router.push('/dashboard/servicios');
-      return;
-    }
-
-    setOrgId(org.id);
-    setLoading(false);
-  }
-  fetchHoursAndCheck();
-}, [supabase, router])
+    fetchHoursAndCheck();
+  }, [supabase, router])
 
   // --- FUNCIÓN handleSave (INTACTA) ---
   const handleSave = async () => {
@@ -126,7 +147,6 @@ useEffect(() => {
     }
   }
 
-  // --- SPINNER DE CARGA DEL PORTERO ---
   if (loading && !orgId) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
@@ -137,11 +157,9 @@ useEffect(() => {
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-4 md:p-10">
-      
       <OnboardingProgress currentStep={4} />
 
       <div className="w-full max-w-4xl bg-white rounded-[40px] p-8 md:p-14 shadow-xl shadow-slate-200 border border-slate-100">
-        
         <header className="mb-12 text-center flex flex-col items-center">
           <h1 className="text-4xl font-black text-rose-950 tracking-tighter leading-tight">
             Horarios de <span className="text-rose-700">Atención</span>
@@ -225,7 +243,7 @@ useEffect(() => {
       </div>
 
       <p className="mt-10 text-slate-400 text-[10px] font-bold uppercase tracking-[0.3em] text-center">
-        Powered by Artemix S.A.
+        Artemix S.A. • 2026
       </p>
     </div>
   )
