@@ -22,7 +22,7 @@ export default function SuscripcionPage() {
   
   const FREE_TRIAL_DAYS = 30; 
 
-  // --- 🚪 EL PORTERO FINAL: VALIDACIÓN DE INTEGRIDAD TOTAL ---
+// --- 🚪 EL PORTERO DEFINITIVO (Paso 7/7 - 100%) ---
   useEffect(() => {
     const checkFinalIntegrity = async () => {
       try {
@@ -30,58 +30,41 @@ export default function SuscripcionPage() {
         if (!session?.user) { router.push('/'); return; }
         setUser(session.user)
 
-        // 1. Consultar organización
         const { data: org } = await supabase
           .from('organizations')
           .select('*')
           .eq('owner_id', session.user.id)
           .single()
 
-        // 🛡️ Cadena de integridad (Pasos 1 al 4)
+        // 🛡️ Validaciones de seguridad (Pasos 1 al 5)
         if (!org?.business_type) { router.push('/onboarding'); return; }
         if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
         if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-        // 🛡️ Validar Paso 4 (Horarios)
-        const { count: hoursCount } = await supabase
-          .from('operating_hours')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', org.id)
-        if (!hoursCount || hoursCount === 0) { router.push('/onboarding/horarios'); return; }
-
-        // 🛡️ Validar Paso 5 (Servicios)
-        const { count: servicesCount } = await supabase
-          .from('services_config')
-          .select('*', { count: 'exact', head: true })
-          .eq('organization_id', org.id)
-        if (!servicesCount || servicesCount === 0) { router.push('/onboarding/servicios'); return; }
-
-        // 🚀 SALTO DE SEGURIDAD: Si ya tiene un ID de suscripción de Recurrente o status activo, al Dashboard
-        // Esto evita que usuarios ya pagados vuelvan a ver esta pantalla
-        if (org.subscription_status === 'active' && org.subscription_plan !== 'free_trial') {
-          router.push('/dashboard/suscripcion')
-          return
+        // 🚀 LÓGICA ANTI-LOOP:
+        // Si el estado es 'active', el usuario ya no pertenece al onboarding.
+        if (org.subscription_status === 'active') {
+          console.log("✅ Usuario activo. Enviando al Dashboard final...");
+          router.push('/dashboard/suscripcion'); 
+          return;
         }
 
+        // Si el estado es 'pending_payment', se queda aquí para hacer el checkout.
         if (org) {
           setOrgId(org.id)
           const dbTier = org.subscription_tier?.toLowerCase() || 'starter'
-          let finalTier = 'starter'
-          if (dbTier === 'basic' || dbTier === 'starter') finalTier = 'starter'
-          else if (dbTier === 'standard' || dbTier === 'business') finalTier = 'business'
-          else if (dbTier === 'premium') finalTier = 'premium'
-
-          setPlanTier(finalTier)
+          setPlanTier(dbTier)
           setBillingCycle(org.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
         }
         
-        setIsLoading(false)
+        setIsLoading(false) // Detiene el spinner y muestra la página de pago
       } catch (err) {
-        console.error("Error sincronizando:", err)
+        console.error("Error en portero final:", err)
       }
     }
     checkFinalIntegrity()
   }, [supabase, router])
+
 
   const currentPlan = PRICING[planTier] || PRICING.starter
   const basePrice = billingCycle === 'monthly' ? currentPlan.monthly : currentPlan.yearly

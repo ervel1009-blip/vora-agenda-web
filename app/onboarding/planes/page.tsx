@@ -91,7 +91,7 @@ export default function PlanesPage() {
     checkOnboardingIntegrity()
   }, [supabase, router])
 
-  const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
+const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -101,13 +101,17 @@ export default function PlanesPage() {
       const trialExpiry = new Date()
       trialExpiry.setDate(trialExpiry.getDate() + trialDays)
 
+      // 🚩 CAMBIO QUIRÚRGICO: 
+      // Si es trial_hard (30 días), el estado es 'pending_payment' hasta que meta la tarjeta.
+      const newStatus = mode === 'trial_soft' ? 'active' : 'pending_payment';
+
       const { error } = await supabase
         .from('organizations')
         .update({ 
           subscription_tier: selectedPlan,
           billing_cycle: billingCycle,
           subscription_plan: 'free_trial',
-          subscription_status: 'active',
+          subscription_status: newStatus, // <--- Estado dinámico
           subscription_expires_at: trialExpiry.toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -119,7 +123,8 @@ export default function PlanesPage() {
         const waMsg = encodeURIComponent(`¡Hola VORA! Elegí el plan ${selectedPlan} (${billingCycle}). Mi correo es ${user.email}. ¡Quiero mis 7 días gratis!`);
         window.location.assign(`https://wa.me/50251151814?text=${waMsg}`);
       } else {
-        window.location.assign('/dashboard/suscripcion');
+        // Al ser 'pending_payment', el Portero del paso 7 lo dejará entrar
+        router.push('/dashboard/suscripcion'); 
       }
     } catch (err: any) {
       console.error("Error al guardar plan:", err.message)
