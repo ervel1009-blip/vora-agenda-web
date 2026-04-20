@@ -16,51 +16,71 @@ export default function SuscripcionPage() {
   const router = useRouter()
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
   const [planTier, setPlanTier] = useState('starter')
-  const [isLoading, setIsLoading] = useState(true) // Portero inicia validando
+  const [isLoading, setIsLoading] = useState(true) // Iniciamos en true para el Portero
   const [user, setUser] = useState<any>(null)
   const [orgId, setOrgId] = useState<string | null>(null)
   
-  // --- 🚪 EL PORTERO FINAL (Cirugía de Precisión) ---
+  const FREE_TRIAL_DAYS = 30; 
+
+  // --- 🚪 EL PORTERO FINAL: VALIDACIÓN DE INTEGRIDAD TOTAL ---
   useEffect(() => {
-    const checkFinalStatus = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (!session) { router.push('/'); return; }
-      setUser(session.user)
+    const checkFinalIntegrity = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession()
+        if (!session?.user) { router.push('/'); return; }
+        setUser(session.user)
 
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('owner_id', session.user.id)
-        .single()
+        // 1. Consultar organización
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('*')
+          .eq('owner_id', session.user.id)
+          .single()
 
-      // 1. Validar integridad (Si falta algo de atrás, regresa)
-      if (!org?.business_type) { router.push('/onboarding'); return; }
-      if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
-      if (!org?.public_phone) { router.push('/onboarding/perfil'); return; }
+        // 🛡️ Cadena de integridad (Pasos 1 al 4)
+        if (!org?.business_type) { router.push('/onboarding'); return; }
+        if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
+        if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-      // 🚀 EL SALTO INTELIGENTE:
-      // Si el status ya es 'active', significa que ya pasó por Recurrente o ya activó su trial.
-      // Ya no debe estar en onboarding. Al refrescar, lo mandamos al Dashboard.
-      if (org.subscription_status === 'active') {
-        console.log("✅ Suscripción activa detectada. Onboarding finalizado.");
-        router.push('/dashboard/suscripcion');
-        return;
+        // 🛡️ Validar Paso 4 (Horarios)
+        const { count: hoursCount } = await supabase
+          .from('operating_hours')
+          .select('*', { count: 'exact', head: true })
+          .eq('org_id', org.id)
+        if (!hoursCount || hoursCount === 0) { router.push('/onboarding/horarios'); return; }
+
+        // 🛡️ Validar Paso 5 (Servicios)
+        const { count: servicesCount } = await supabase
+          .from('services_config')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+        if (!servicesCount || servicesCount === 0) { router.push('/onboarding/servicios'); return; }
+
+        // 🚀 SALTO DE SEGURIDAD: Si ya tiene un ID de suscripción de Recurrente o status activo, al Dashboard
+        // Esto evita que usuarios ya pagados vuelvan a ver esta pantalla
+        if (org.subscription_status === 'active' && org.subscription_plan !== 'free_trial') {
+          router.push('/dashboard/suscripcion')
+          return
+        }
+
+        if (org) {
+          setOrgId(org.id)
+          const dbTier = org.subscription_tier?.toLowerCase() || 'starter'
+          let finalTier = 'starter'
+          if (dbTier === 'basic' || dbTier === 'starter') finalTier = 'starter'
+          else if (dbTier === 'standard' || dbTier === 'business') finalTier = 'business'
+          else if (dbTier === 'premium') finalTier = 'premium'
+
+          setPlanTier(finalTier)
+          setBillingCycle(org.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
+        }
+        
+        setIsLoading(false)
+      } catch (err) {
+        console.error("Error sincronizando:", err)
       }
-
-      if (org) {
-        setOrgId(org.id)
-        const dbTier = org.subscription_tier?.toLowerCase() || 'starter'
-        let finalTier = 'starter'
-        if (dbTier === 'basic' || dbTier === 'starter') finalTier = 'starter'
-        else if (dbTier === 'standard' || dbTier === 'business') finalTier = 'business'
-        else if (dbTier === 'premium') finalTier = 'premium'
-
-        setPlanTier(finalTier)
-        setBillingCycle(org.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
-      }
-      setIsLoading(false)
     }
-    checkFinalStatus()
+    checkFinalIntegrity()
   }, [supabase, router])
 
   const currentPlan = PRICING[planTier] || PRICING.starter
@@ -71,6 +91,7 @@ export default function SuscripcionPage() {
     setIsLoading(true)
     
     try {
+      // Invocación a la Edge Function de Recurrente
       const { data, error } = await supabase.functions.invoke('create-recurrente-checkout', {
         body: {
           orgId,
@@ -85,21 +106,26 @@ export default function SuscripcionPage() {
       if (data?.checkout_url) window.location.assign(data.checkout_url)
     } catch (err: any) {
       alert(`Error: ${err.message}`)
+    } finally {
       setIsLoading(false)
     }
   }
 
-  if (isLoading) return (
-    <div className="min-h-screen flex items-center justify-center bg-slate-50">
-      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
-    </div>
-  );
+  if (isLoading && !orgId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 md:p-12 font-sans">
       
-      {/* 🏁 PASO FINAL: 7 de 7 (100%) */}
-      <OnboardingProgress currentStep={7} />
+      {/* 🏁 META FINAL: Paso 7 de 7 (100%) */}
+      <div className="w-full max-w-xl mb-12">
+        <OnboardingProgress currentStep={7} />
+      </div>
 
       <header className="mb-12 text-center">
         <h1 className="text-4xl md:text-5xl font-black text-rose-950 tracking-tighter">
@@ -133,12 +159,12 @@ export default function SuscripcionPage() {
             <button 
               onClick={handleCheckout} 
               disabled={isLoading || !user}
-              className="w-full bg-white text-rose-700 py-6 rounded-2xl font-black text-2xl hover:bg-rose-50 shadow-xl disabled:opacity-50 transition-all active:scale-95"
+              className="w-full bg-white text-rose-700 py-6 rounded-2xl font-black text-2xl hover:bg-rose-50 shadow-xl transition-all active:scale-95 disabled:opacity-50"
             >
               {isLoading ? 'Cargando...' : 'Iniciar Prueba Gratis'}
             </button>
             <p className="text-[11px] text-rose-200 mt-8 font-bold italic leading-relaxed">
-              "No se realizará ningún cobro hoy. Podrás cancelar en cualquier momento."
+              "No se realizará ningún cobro hoy. Podrás cancelar en cualquier momento antes de que termine tu prueba de 30 días."
             </p>
         </div>
       </div>
