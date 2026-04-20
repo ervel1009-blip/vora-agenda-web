@@ -17,79 +17,45 @@ export default function HorariosPage() {
   const [orgId, setOrgId] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<{ [key: number]: { open: string, close: string, closed: boolean } }>({})
 
-  // --- 🚪 EL PORTERO + CARGA DE DATOS (Integrado) ---
-  useEffect(() => {
-    const fetchHoursAndCheck = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      
-      if (!session) {
-        router.push('/')
-        return
-      }
+// --- 🚪 PORTERO PASO 4 ---
+useEffect(() => {
+  const fetchHoursAndCheck = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
+    if (!session) { router.push('/'); return; }
 
-      // 1. EL PORTERO: Verificación de integridad del Onboarding
-      const { data: org } = await supabase
-        .from('organizations')
-        .select('*')
-        .eq('owner_id', session.user.id)
-        .single()
+    const { data: org } = await supabase
+      .from('organizations')
+      .select('*')
+      .eq('owner_id', session.user.id)
+      .single()
 
-      // Validamos pasos previos
-      if (!org?.business_type) {
-        router.push('/onboarding')
-        return
-      }
-      if (!org?.google_calendar_id) {
-        router.push('/onboarding/calendario')
-        return
-      }
-      if (!org?.public_phone || !org?.address) {
-        router.push('/onboarding/perfil')
-        return
-      }
+    // FILTRO EN CASCADA (No permite saltos)
+    if (!org?.business_type) { router.push('/onboarding'); return; }
+    if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
+    
+    // Si falta el perfil (Paso 3), lo mandamos allá, NO al calendario
+    if (!org?.public_phone || !org?.address) {
+      console.log("⚠️ Falta perfil. Moviendo al Paso 3...");
+      router.push('/onboarding/perfil'); 
+      return;
+    }
 
-      // 🔎 Si el usuario ya completó los pasos siguientes (ej. ya tiene servicios), 
-      // lo mandamos directo al Dashboard.
-      const { count: servicesCount } = await supabase
-        .from('services_config')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', org.id)
+    // Si ya tiene horarios, saltamos al paso 5 (Servicios)
+    const { data: hoursData } = await supabase
+      .from('operating_hours')
+      .select('*')
+      .eq('org_id', org.id)
 
-      if (servicesCount && servicesCount > 0) {
-        console.log("🚀 Onboarding completo detectado. Redirigiendo...");
-        router.push('/dashboard/suscripcion')
-        return
-      }
+    if (hoursData && hoursData.length > 0) {
+      router.push('/onboarding/servicios');
+      return;
+    }
 
-  
-     // 2. CARGA DE HORARIOS + SALTO AUTOMÁTICO (Portero inteligente)
-      if (org) {
-        setOrgId(org.id)
-        const { data: hoursData } = await supabase
-          .from('operating_hours')
-          .select('*')
-          .eq('org_id', org.id)
-
-        if (hoursData && hoursData.length > 0) {
-          // 🚀 EL SALTO: Si ya existen horarios, el usuario ya cumplió este paso.
-          // Lo mandamos al siguiente paso sin hacerlo esperar.
-          console.log("✅ Horarios detectados en DB. Saltando al paso de Servicios...");
-          router.push('/dashboard/servicios') // 🚩 Verifica que esta sea tu ruta del Paso 5
-          return // Importante para detener la ejecución aquí
-        } else {
-          // Valores por defecto (Solo se cargan si es la primera vez que entra)
-          const defaults: any = {}
-          DAYS.forEach(d => { 
-            defaults[d.id] = { open: '08:00:00', close: '17:00:00', closed: d.id === 0 } 
-          })
-          setSchedule(defaults)
-        }
-      }
-      setLoading(false)
-   }
-
-    fetchHoursAndCheck()
-  }, [supabase, router])
+    setOrgId(org.id);
+    setLoading(false);
+  }
+  fetchHoursAndCheck();
+}, [supabase, router])
 
   // --- FUNCIÓN handleSave (INTACTA) ---
   const handleSave = async () => {
