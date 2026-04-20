@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
-// 🚩 Importación del componente global
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
 
 const DAYS = [
@@ -14,22 +13,55 @@ const DAYS = [
 export default function HorariosPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [loading, setLoading] = useState(false)
+  const [loading, setLoading] = useState(true) // Iniciamos en true para el Portero
   const [orgId, setOrgId] = useState<string | null>(null)
   const [schedule, setSchedule] = useState<{ [key: number]: { open: string, close: string, closed: boolean } }>({})
 
-  // --- LÓGICA (INTACTA) ---
+  // --- 🚪 EL PORTERO + CARGA DE DATOS (Integrado) ---
   useEffect(() => {
-    const fetchHours = async () => {
-      const { data: { user } } = await supabase.auth.getUser()
-      if (!user) return
+    const fetchHoursAndCheck = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/')
+        return
+      }
 
+      // 1. EL PORTERO: Verificación de integridad del Onboarding
       const { data: org } = await supabase
         .from('organizations')
-        .select('id')
-        .eq('owner_id', user.id)
+        .select('*')
+        .eq('owner_id', session.user.id)
         .single()
-      
+
+      // Validamos pasos previos
+      if (!org?.business_type) {
+        router.push('/onboarding')
+        return
+      }
+      if (!org?.google_calendar_id) {
+        router.push('/onboarding/calendario')
+        return
+      }
+      if (!org?.public_phone || !org?.address) {
+        router.push('/onboarding/perfil')
+        return
+      }
+
+      // 🔎 Si el usuario ya completó los pasos siguientes (ej. ya tiene servicios), 
+      // lo mandamos directo al Dashboard.
+      const { count: servicesCount } = await supabase
+        .from('services_config')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', org.id)
+
+      if (servicesCount && servicesCount > 0) {
+        console.log("🚀 Onboarding completo detectado. Redirigiendo...");
+        router.push('/dashboard/suscripcion')
+        return
+      }
+
+      // 2. CARGA DE HORARIOS (Tu lógica original)
       if (org) {
         setOrgId(org.id)
         const { data: hoursData } = await supabase
@@ -48,6 +80,7 @@ export default function HorariosPage() {
           })
           setSchedule(loadedSchedule)
         } else {
+          // Valores por defecto
           const defaults: any = {}
           DAYS.forEach(d => { 
             defaults[d.id] = { open: '08:00:00', close: '17:00:00', closed: d.id === 0 } 
@@ -55,17 +88,17 @@ export default function HorariosPage() {
           setSchedule(defaults)
         }
       }
+      setLoading(false)
     }
-    fetchHours()
-  }, [supabase])
+    fetchHoursAndCheck()
+  }, [supabase, router])
 
-  
-const handleSave = async () => {
+  // --- FUNCIÓN handleSave (INTACTA) ---
+  const handleSave = async () => {
     if (!orgId) return
     setLoading(true)
 
     try {
-        // 1. Preparamos los datos para la tabla relacional
         const upsertData = DAYS.map(day => ({
             org_id: orgId,
             day_of_week: day.id,
@@ -74,28 +107,23 @@ const handleSave = async () => {
             is_closed: !!schedule[day.id]?.closed
         }))
 
-        // Guardamos en operating_hours para la lógica de base de datos
         const { error: hoursError } = await supabase
             .from('operating_hours')
             .upsert(upsertData, { onConflict: 'org_id, day_of_week' })
 
         if (hoursError) throw hoursError
 
-        // 🚩 PASO 2: Generar el resumen de horarios para la IA
         const scheduleSummary = DAYS.map(day => {
             const d = schedule[day.id]
             return `${day.name}: ${d?.closed ? 'Cerrado' : `${d?.open.substring(0,5)} a ${d?.close.substring(0,5)}`}`
         }).join(', ')
 
-        // 🚩 PASO 3: Re-hidratación completa (Evita perder datos si el usuario navega)
-        // Traemos los datos actuales de la organización
         const { data: orgData } = await supabase
             .from('organizations')
             .select('name, currency_symbol, business_type, chat_context')
             .eq('id', orgId)
             .single()
 
-        // Traemos la plantilla limpia de la base de datos
         const { data: templateData } = await supabase
             .from('ai_prompts')
             .select('system_prompt')
@@ -106,13 +134,11 @@ const handleSave = async () => {
 
         let systemPrompt = templateData?.system_prompt || ""
 
-        // Aplicamos TODA la hidratación acumulada hasta el momento
         const hydratedPrompt = systemPrompt
             .replace(/{{name}}/g, orgData.name)
             .replace(/{{currency}}/g, orgData.currency_symbol)
             .replace(/{{hours}}/g, scheduleSummary)
 
-        // 🚩 PASO 4: Actualizar la organización con el prompt actualizado
         const { error: updateError } = await supabase
             .from('organizations')
             .update({
@@ -128,23 +154,28 @@ const handleSave = async () => {
         console.log("✅ Horarios hidratados en el prompt.");
         router.push('/dashboard/servicios') 
 
-    } catch (error) {
+    } catch (error: any) {
         console.error("❌ Error en el flujo de horarios:", error.message)
         alert("Error al guardar: " + error.message)
     } finally {
         setLoading(false)
     }
-}
+  }
 
-
+  // --- SPINNER DE CARGA DEL PORTERO ---
+  if (loading && !orgId) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
+      </div>
+    )
+  }
 
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-4 md:p-10">
       
-      {/* 🚩 NUEVA BARRA GLOBAL: Paso 4 de 7 */}
       <OnboardingProgress currentStep={4} />
 
-      {/* TARJETA BENTO */}
       <div className="w-full max-w-4xl bg-white rounded-[40px] p-8 md:p-14 shadow-xl shadow-slate-200 border border-slate-100">
         
         <header className="mb-12 text-center flex flex-col items-center">
@@ -166,14 +197,12 @@ const handleSave = async () => {
                 : 'bg-white border-transparent hover:border-rose-100 shadow-sm'
               }`}
             >
-              {/* Día */}
               <div className="w-full md:w-32 mb-4 md:mb-0">
                 <span className={`text-lg font-black ${schedule[day.id]?.closed ? 'text-slate-400' : 'text-slate-900'}`}>
                   {day.name}
                 </span>
               </div>
 
-              {/* Selector de Horas */}
               <div className="flex items-center gap-4">
                 <input 
                   type="time" 
@@ -194,7 +223,6 @@ const handleSave = async () => {
                 />
               </div>
 
-              {/* Toggle de Cerrado */}
               <div className="mt-4 md:mt-0">
                 <label className={`flex items-center gap-3 cursor-pointer px-6 py-3 rounded-2xl transition-all ${
                   schedule[day.id]?.closed 
@@ -217,7 +245,6 @@ const handleSave = async () => {
           ))}
         </div>
 
-        {/* Botón de Acción Principal */}
         <div className="pt-10">
           <button 
             onClick={handleSave}
