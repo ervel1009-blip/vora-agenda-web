@@ -74,7 +74,7 @@ export default function HorariosPage() {
           // 🚀 EL SALTO: Si ya existen horarios, el usuario ya cumplió este paso.
           // Lo mandamos al siguiente paso sin hacerlo esperar.
           console.log("✅ Horarios detectados en DB. Saltando al paso de Servicios...");
-          router.push('/onboarding/servicios') // 🚩 Verifica que esta sea tu ruta del Paso 5
+          router.push('/dashboard/servicios') // 🚩 Verifica que esta sea tu ruta del Paso 5
           return // Importante para detener la ejecución aquí
         } else {
           // Valores por defecto (Solo se cargan si es la primera vez que entra)
