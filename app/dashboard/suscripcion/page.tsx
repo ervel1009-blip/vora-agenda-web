@@ -16,21 +16,18 @@ export default function SuscripcionPage() {
   const router = useRouter()
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
   const [planTier, setPlanTier] = useState('starter')
-  const [isLoading, setIsLoading] = useState(true) // Iniciamos en true para el Portero
+  const [isLoading, setIsLoading] = useState(true) 
   const [user, setUser] = useState<any>(null)
   const [orgId, setOrgId] = useState<string | null>(null)
   
   const FREE_TRIAL_DAYS = 30; 
 
-// --- 🚪 EL PORTERO DEFINITIVO (Paso 7/7 - 100%) ---
+  // --- 🚪 EL PORTERO FINAL (Paso 7/7 - 100% Integridad) ---
   useEffect(() => {
-    const checkStatus = async () => {
+    const checkFinalStatus = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
-        if (!session?.user) {
-          router.push('/')
-          return
-        }
+        if (!session?.user) { router.push('/'); return; }
         setUser(session.user)
 
         const { data: org } = await supabase
@@ -39,42 +36,47 @@ export default function SuscripcionPage() {
           .eq('owner_id', session.user.id)
           .single()
 
-        // 1. Validaciones de Integridad Técnica (Pasos 1-5)
+        // 1. VALIDACIÓN HACIA ATRÁS (La cadena completa)
         if (!org?.business_type) { router.push('/onboarding'); return; }
-        if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
+        if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
         if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-        // 2. LÓGICA PARA ROMPER EL BUCLE
+        // Validar Paso 4 (Horarios)
+        const { count: hoursCount } = await supabase.from('operating_hours').select('*', { count: 'exact', head: true }).eq('org_id', org.id)
+        if (!hoursCount || hoursCount === 0) { router.push('/dashboard/horarios'); return; }
+
+        // Validar Paso 5 (Servicios)
+        const { count: servicesCount } = await supabase.from('services_config').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
+        if (!servicesCount || servicesCount === 0) { router.push('/dashboard/servicios'); return; }
+
+        // 2. LÓGICA DE ESTADOS PARA ROMPER EL LOOP
         
-        // Caso A: Ya pagó o ya activó trial de 7 días. 
-        // No debe estar aquí. Se envía a la página principal del Dashboard.
+        // Caso A: Ya es usuario activo (ya pagó o activó trial)
         if (org.subscription_status === 'active') {
-          console.log("✅ Suscripción activa. Redirigiendo al panel principal...");
-          router.push('/dashboard/calendario'); 
+          console.log("✅ Usuario activo. Onboarding finalizado con éxito.");
+          router.push('/dashboard/calendario'); // Lo mandamos a su herramienta de trabajo
           return;
         }
 
-        // Caso B: Estado 'pending_payment'.
-        // Es el estado esperado para esta página. Detenemos la carga y mostramos el Checkout.
+        // Caso B: Está pendiente de pago (Estado correcto para esta página)
         if (org.subscription_status === 'pending_payment') {
           setOrgId(org.id)
           const dbTier = org.subscription_tier?.toLowerCase() || 'starter'
           setPlanTier(dbTier)
           setBillingCycle(org.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
-          setIsLoading(false); // <--- Aquí se permite ver la página
+          setIsLoading(false); // Detenemos el spinner y mostramos el checkout
           return;
         }
 
-        // Caso C: No hay estado de suscripción.
-        // Significa que no ha pasado por la página de Planes. Regresa al paso 6.
-        console.log("⚠️ No se detectó plan seleccionado. Regresando a Planes...");
+        // Caso C: No ha elegido plan aún
+        console.log("⚠️ No se detectó plan. Regresando al Paso 6...");
         router.push('/onboarding/planes');
 
       } catch (err) {
-        console.error("Error en el portero de suscripción:", err)
+        console.error("Error en el portero final:", err)
       }
     }
-    checkStatus()
+    checkFinalStatus()
   }, [supabase, router])
 
   const currentPlan = PRICING[planTier] || PRICING.starter
@@ -85,7 +87,6 @@ export default function SuscripcionPage() {
     setIsLoading(true)
     
     try {
-      // Invocación a la Edge Function de Recurrente
       const { data, error } = await supabase.functions.invoke('create-recurrente-checkout', {
         body: {
           orgId,
@@ -100,12 +101,11 @@ export default function SuscripcionPage() {
       if (data?.checkout_url) window.location.assign(data.checkout_url)
     } catch (err: any) {
       alert(`Error: ${err.message}`)
-    } finally {
       setIsLoading(false)
     }
   }
 
-  if (isLoading && !orgId) {
+  if (isLoading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
@@ -116,7 +116,6 @@ export default function SuscripcionPage() {
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 md:p-12 font-sans">
       
-      {/* 🏁 META FINAL: Paso 7 de 7 (100%) */}
       <div className="w-full max-w-xl mb-12">
         <OnboardingProgress currentStep={7} />
       </div>
@@ -152,13 +151,12 @@ export default function SuscripcionPage() {
             <h3 className="text-3xl font-black mb-10 tracking-[0.3em]">CHECKOUT</h3>
             <button 
               onClick={handleCheckout} 
-              disabled={isLoading || !user}
-              className="w-full bg-white text-rose-700 py-6 rounded-2xl font-black text-2xl hover:bg-rose-50 shadow-xl transition-all active:scale-95 disabled:opacity-50"
+              className="w-full bg-white text-rose-700 py-6 rounded-2xl font-black text-2xl hover:bg-rose-50 shadow-xl transition-all active:scale-95"
             >
-              {isLoading ? 'Cargando...' : 'Iniciar Prueba Gratis'}
+              Iniciar Prueba Gratis
             </button>
             <p className="text-[11px] text-rose-200 mt-8 font-bold italic leading-relaxed">
-              "No se realizará ningún cobro hoy. Podrás cancelar en cualquier momento antes de que termine tu prueba de 30 días."
+              "No se realizará ningún cobro hoy. Podrás cancelar en cualquier momento."
             </p>
         </div>
       </div>
