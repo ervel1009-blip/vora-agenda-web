@@ -57,13 +57,13 @@ export default function PlanesPage() {
       // Si el estado es 'pending_payment', significa que ya eligió plan pero le falta la tarjeta.
       // Lo mandamos de una vez al Paso 7 (Suscripción).
       if (org.subscription_status === 'pending_payment') {
-        router.push('/onboarding/suscripcion'); 
+        router.push('/dashboard/suscripcion'); 
         return;
       }
 
       // Si ya es 'active', ya terminó todo el onboarding.
       if (org.subscription_status === 'active') {
-        router.push('/onboarding/suscripcion'); 
+        router.push('/dashboard/suscripcion'); 
         return;
       }
 
@@ -105,7 +105,7 @@ export default function PlanesPage() {
         window.location.assign(`https://wa.me/50251151814?text=${waMsg}`);
       } else {
         // Redirección al Paso 7 (Checkout de Tarjeta)
-        router.push('/onboarding/suscripcion'); 
+        router.push('/dashboard/suscripcion'); 
       }
     } catch (err: any) {
       console.error("Error al guardar plan:", err.message)
