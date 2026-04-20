@@ -14,7 +14,7 @@ export default function CalendarPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorStatus, setErrorStatus] = useState<string | null>(null)
 
-  // --- 🚪 EL PORTERO: VALIDACIÓN DE ACCESO ---
+ // --- 🚪 EL PORTERO LINEAL (Paso 2/7) ---
   useEffect(() => {
     const gatekeeper = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -24,32 +24,34 @@ export default function CalendarPage() {
         return
       }
 
-      // Verificamos el estado real en la base de datos
       const { data: org } = await supabase
         .from('organizations')
         .select('business_type, google_calendar_id')
         .eq('owner_id', session.user.id)
         .single()
 
-      // Caso A: No ha elegido giro de negocio -> Regresa al Paso 1
+      // 1. Validar hacia atrás: ¿Hizo el Paso 1?
       if (!org?.business_type) {
+        console.log("⚠️ Falta giro de negocio. Regresando al Paso 1...");
         router.push('/onboarding')
         return
       }
 
-      // Caso B: YA tiene calendario configurado -> Va al Panel de Control (Dashboard final)
+      // 2. Validar hacia adelante: ¿Ya hizo este Paso 2?
+      // 🚩 CORRECCIÓN: Saltar solo al Paso 3 (Perfil), no al final.
       if (org?.google_calendar_id) {
-        console.log("🚀 Configuración completa. Enviando al Panel de Control...");
-        router.push('/dashboard/suscripcion') // O la ruta que definamos como inicio
-        return
+        console.log("✅ Calendario ya vinculado. Avanzando al Paso 3 (Perfil)...");
+        router.push('/onboarding/perfil') 
+        return 
       }
 
-      // Caso C: Tiene giro pero no calendario -> Se queda aquí (Paso 2)
+      // Si llegó aquí, es que no tiene calendario. Cargamos los datos.
       fetchRealGoogleCalendars()
     }
 
     gatekeeper()
   }, [supabase, router])
+
 
   // --- LÓGICA ORIGINAL (INTACTA) ---
   const fetchRealGoogleCalendars = async () => {
