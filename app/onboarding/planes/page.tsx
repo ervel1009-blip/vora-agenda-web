@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import { useRouter } from 'next/navigation' // 🚩 Necesario para la redirección
+import { useRouter } from 'next/navigation'
 
 const OnboardingProgress = ({ currentStep }: { currentStep: number }) => (
   <div className="w-full max-w-xl mb-8">
@@ -17,72 +17,54 @@ const OnboardingProgress = ({ currentStep }: { currentStep: number }) => (
 );
 
 const PLANS = [
-  { 
-    id: 'starter', 
-    name: 'Starter', 
-    monthlyPrice: 19.99, 
-    yearlyPrice: 219.89, 
-    desc: 'Ideal para independientes y pequeños salones.' 
-  },
-  { 
-    id: 'business', 
-    name: 'Business', 
-    monthlyPrice: 39.99, 
-    yearlyPrice: 455.89, 
-    desc: 'Diseñado para clínicas y salones de belleza con staff de 1 a 3 especialistas.' 
-  },
-  { 
-    id: 'premium', 
-    name: 'Premium', 
-    monthlyPrice: 69.99, 
-    yearlyPrice: 797.89, 
-    desc: 'Gestión total, IA avanzada y soporte prioritario con staff de 1 a 7 especialistas.' 
-  }
+  { id: 'starter', name: 'Starter', monthlyPrice: 19.99, yearlyPrice: 219.89, desc: 'Ideal para independientes y pequeños salones.' },
+  { id: 'business', name: 'Business', monthlyPrice: 39.99, yearlyPrice: 455.89, desc: 'Diseñado para clínicas y salones de belleza con staff de 1 a 3 especialistas.' },
+  { id: 'premium', name: 'Premium', monthlyPrice: 69.99, yearlyPrice: 797.89, desc: 'Gestión total, IA avanzada y soporte prioritario con staff de 1 a 7 especialistas.' }
 ]
 
 export default function PlanesPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [loading, setLoading] = useState(true) // 🚩 Iniciamos en true para el Portero
+  const [loading, setLoading] = useState(true)
   const [selectedPlan, setSelectedPlan] = useState('starter')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
-  // --- 🚪 EL PORTERO: VALIDACIÓN DE INTEGRIDAD Y ESTADO ---
+  // --- 🚪 EL PORTERO: SINCRONIZACIÓN TOTAL ---
   useEffect(() => {
     const checkOnboardingIntegrity = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/'); return; }
 
-      const userId = session.user.id
-
-      // 1. Consultar organización y datos clave
       const { data: org } = await supabase
         .from('organizations')
         .select('*')
-        .eq('owner_id', userId)
+        .eq('owner_id', session.user.id)
         .single()
 
-      // Validar pasos anteriores (1 al 4)
+      // 🛡️ Seguridad de pasos previos
       if (!org?.business_type) { router.push('/onboarding'); return; }
       if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
       if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-      // Validar Paso 5 (Servicios)
-      const { count: servicesCount } = await supabase
+      // 🛡️ Seguridad de Servicios
+      const { count } = await supabase
         .from('services_config')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', org.id)
+      if (!count || count === 0) { router.push('/onboarding/servicios'); return; }
 
-      if (!servicesCount || servicesCount === 0) {
-        router.push('/onboarding/servicios')
-        return
+      // 🚀 RUPTURA DEL BUCLE:
+      // Si el estado es 'pending_payment', significa que ya eligió plan pero le falta la tarjeta.
+      // Lo mandamos de una vez al Paso 7 (Suscripción).
+      if (org.subscription_status === 'pending_payment') {
+        router.push('/onboarding/suscripcion'); 
+        return;
       }
 
-      // 🚀 SALTO INTELIGENTE: Si ya eligió plan o está en trial, al Dashboard
-      if (org.subscription_plan === 'free_trial' || org.subscription_status === 'active') {
-        console.log("✅ Plan ya detectado. Redirigiendo al Dashboard...");
-        router.push('/dashboard/suscripcion')
-        return
+      // Si ya es 'active', ya terminó todo el onboarding.
+      if (org.subscription_status === 'active') {
+        router.push('/dashboard/suscripcion'); 
+        return;
       }
 
       setLoading(false)
@@ -91,7 +73,7 @@ export default function PlanesPage() {
     checkOnboardingIntegrity()
   }, [supabase, router])
 
-const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
+  const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
     setLoading(true)
     try {
       const { data: { user } } = await supabase.auth.getUser()
@@ -101,8 +83,7 @@ const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
       const trialExpiry = new Date()
       trialExpiry.setDate(trialExpiry.getDate() + trialDays)
 
-      // 🚩 CAMBIO QUIRÚRGICO: 
-      // Si es trial_hard (30 días), el estado es 'pending_payment' hasta que meta la tarjeta.
+      // 🚩 ESTADO PENDIENTE: Para que el portero de la siguiente página lo deje entrar
       const newStatus = mode === 'trial_soft' ? 'active' : 'pending_payment';
 
       const { error } = await supabase
@@ -111,7 +92,7 @@ const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
           subscription_tier: selectedPlan,
           billing_cycle: billingCycle,
           subscription_plan: 'free_trial',
-          subscription_status: newStatus, // <--- Estado dinámico
+          subscription_status: newStatus,
           subscription_expires_at: trialExpiry.toISOString(),
           updated_at: new Date().toISOString()
         })
@@ -123,19 +104,18 @@ const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
         const waMsg = encodeURIComponent(`¡Hola VORA! Elegí el plan ${selectedPlan} (${billingCycle}). Mi correo es ${user.email}. ¡Quiero mis 7 días gratis!`);
         window.location.assign(`https://wa.me/50251151814?text=${waMsg}`);
       } else {
-        // Al ser 'pending_payment', el Portero del paso 7 lo dejará entrar
-        router.push('/dashboard/suscripcion'); 
+        // Redirección al Paso 7 (Checkout de Tarjeta)
+        router.push('/onboarding/suscripcion'); 
       }
     } catch (err: any) {
       console.error("Error al guardar plan:", err.message)
-      alert("Error al actualizar el plan. Intenta de nuevo.")
+      alert("Error al actualizar el plan.")
     } finally {
       setLoading(false)
     }
   }
 
-  // --- SPINNER MIENTRAS EL PORTERO VERIFICA ---
-  if (loading && !selectedPlan) {
+  if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
         <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
@@ -158,20 +138,10 @@ const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
 
         <div className="flex justify-center mb-16">
           <div className="bg-white border border-slate-200 p-1.5 rounded-2xl flex items-center shadow-sm">
-            <button 
-              onClick={() => setBillingCycle('monthly')}
-              className={`px-10 py-3 rounded-xl font-black transition-all text-sm uppercase tracking-widest ${billingCycle === 'monthly' ? 'bg-rose-700 text-white shadow-md' : 'text-slate-400'}`}
-            >
-              Mensual
-            </button>
-            <button 
-              onClick={() => setBillingCycle('yearly')}
-              className={`px-10 py-3 rounded-xl font-black transition-all text-sm uppercase tracking-widest flex items-center gap-2 ${billingCycle === 'yearly' ? 'bg-rose-700 text-white shadow-md' : 'text-slate-400'}`}
-            >
+            <button onClick={() => setBillingCycle('monthly')} className={`px-10 py-3 rounded-xl font-black transition-all text-sm uppercase tracking-widest ${billingCycle === 'monthly' ? 'bg-rose-700 text-white shadow-md' : 'text-slate-400'}`}>Mensual</button>
+            <button onClick={() => setBillingCycle('yearly')} className={`px-10 py-3 rounded-xl font-black transition-all text-sm uppercase tracking-widest flex items-center gap-2 ${billingCycle === 'yearly' ? 'bg-rose-700 text-white shadow-md' : 'text-slate-400'}`}>
               Anual 
-              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${billingCycle === 'yearly' ? 'bg-rose-500 text-white' : 'bg-green-100 text-green-600'}`}>
-                Ahorra más
-              </span>
+              <span className={`text-[9px] px-2 py-0.5 rounded-full font-bold ${billingCycle === 'yearly' ? 'bg-rose-500 text-white' : 'bg-green-100 text-green-600'}`}>Ahorra más</span>
             </button>
           </div>
         </div>
@@ -180,61 +150,30 @@ const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
           {PLANS.map(plan => {
             const displayPrice = billingCycle === 'monthly' ? plan.monthlyPrice : (plan.yearlyPrice / 12).toFixed(2);
             const isSelected = selectedPlan === plan.id;
-
             return (
-              <div 
-                key={plan.id}
-                onClick={() => setSelectedPlan(plan.id)}
-                className={`p-8 rounded-[40px] border-4 cursor-pointer transition-all flex flex-col justify-between h-full ${
-                  isSelected ? 'border-rose-700 bg-white shadow-xl scale-105' : 'border-white bg-white/60 shadow-sm'
-                }`}
-              >
+              <div key={plan.id} onClick={() => setSelectedPlan(plan.id)} className={`p-8 rounded-[40px] border-4 cursor-pointer transition-all flex flex-col justify-between h-full ${isSelected ? 'border-rose-700 bg-white shadow-xl scale-105' : 'border-white bg-white/60 shadow-sm'}`}>
                   <div>
-                    <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-4 ${isSelected ? 'text-rose-700' : 'text-slate-400'}`}>
-                      {plan.name}
-                    </h3>
+                    <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-4 ${isSelected ? 'text-rose-700' : 'text-slate-400'}`}>{plan.name}</h3>
                     <div className="flex items-baseline gap-1 mb-2">
                       <span className="text-5xl font-black text-rose-950 tracking-tighter">${displayPrice}</span>
                       <span className="text-slate-400 font-bold">/mes</span>
                     </div>
-                    {billingCycle === 'yearly' && (
-                      <p className="text-xs text-rose-600 font-black mb-6 uppercase tracking-tight">
-                        Total anual: ${plan.yearlyPrice}
-                      </p>
-                    )}
-                    <p className="text-slate-500 font-medium leading-relaxed mb-8 mt-4">
-                      {plan.desc}
-                    </p>
+                    {billingCycle === 'yearly' && <p className="text-xs text-rose-600 font-black mb-6 uppercase tracking-tight">Total anual: ${plan.yearlyPrice}</p>}
+                    <p className="text-slate-500 font-medium leading-relaxed mb-8 mt-4">{plan.desc}</p>
                   </div>
-                  
-                  <div className={`w-full py-4 rounded-2xl font-black text-center transition-all ${
-                    isSelected ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-400'
-                  }`}>
-                    {isSelected ? 'Seleccionado' : 'Elegir'}
-                  </div>
+                  <div className={`w-full py-4 rounded-2xl font-black text-center transition-all ${isSelected ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-400'}`}>{isSelected ? 'Seleccionado' : 'Elegir'}</div>
               </div>
             )
           })}
         </div>
 
         <div className="mt-20 flex flex-col items-center gap-5 w-full max-w-md">
-          <button 
-            onClick={() => handleConfirmPlan('trial_soft')}
-            disabled={loading}
-            className="w-full py-5 bg-white border-2 border-rose-200 text-rose-700 rounded-2xl font-black text-xl hover:bg-rose-50 shadow-sm disabled:opacity-50"
-          >
-            {loading ? 'Procesando...' : '🚀 Prueba de 7 Días (Sin tarjeta)'}
+          <button onClick={() => handleConfirmPlan('trial_soft')} disabled={loading} className="w-full py-5 bg-white border-2 border-rose-200 text-rose-700 rounded-2xl font-black text-xl hover:bg-rose-50 shadow-sm disabled:opacity-50">
+            🚀 Prueba de 7 Días (Sin tarjeta)
           </button>
-
-          <button 
-            onClick={() => handleConfirmPlan('trial_hard')}
-            disabled={loading}
-            className="w-full py-5 bg-gradient-to-r from-rose-700 to-rose-600 text-white rounded-2xl font-black shadow-lg disabled:opacity-50 flex flex-col items-center"
-          >
+          <button onClick={() => handleConfirmPlan('trial_hard')} disabled={loading} className="w-full py-5 bg-gradient-to-r from-rose-700 to-rose-600 text-white rounded-2xl font-black shadow-lg disabled:opacity-50 flex flex-col items-center">
             <span className="text-xl tracking-tight">30 Días Gratis 🎁</span>
-            <span className="text-[10px] uppercase tracking-widest mt-1 text-rose-200 font-bold">
-              Requiere registro de tarjeta ($0.00 hoy)
-            </span>
+            <span className="text-[10px] uppercase tracking-widest mt-1 text-rose-200 font-bold">Requiere registro de tarjeta ($0.00 hoy)</span>
           </button>
         </div>
     </div>
