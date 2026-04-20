@@ -1,61 +1,108 @@
-export default function TermsPage() {
+'use client'
+
+import { createClient } from '@/lib/supabase/client'
+import { useState, useEffect } from 'react' // Añadimos useEffect
+import { useRouter } from 'next/navigation' // Añadimos useRouter para la redirección
+
+export default function LoginPage() {
+  const [isLoading, setIsLoading] = useState(false)
+  const supabase = createClient()
+  const router = useRouter() // Inicializamos el router
+
+  // --- EL PORTERO (Lógica de validación) ---
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session) {
+        setIsLoading(true)
+        const user = session.user
+
+        // Consultamos si ya existe una organización para este usuario
+        const { data: org, error } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('owner_id', user.id)
+          .single()
+
+        if (org) {
+          // Caso: Ya registrado -> Al Dashboard
+          router.push('/dashboard')
+        } else {
+          // Caso: Nuevo -> Al Onboarding
+          router.push('/onboarding')
+        }
+      }
+    }
+
+    checkUserStatus()
+  }, [supabase, router])
+  // ------------------------------------------
+
+  const handleGoogleLogin = async () => {
+    setIsLoading(true)
+    const { error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        queryParams: { access_type: 'offline', prompt: 'consent' },
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
+        // Redirigimos a una ruta intermedia o al onboarding para que el portero actúe
+        redirectTo: `${window.location.origin}/onboarding`, 
+      },
+    })
+    if (error) {
+      console.error('Error:', error.message)
+      setIsLoading(false)
+    }
+  }
+
+  // --- MANTENEMOS TU DISEÑO ORIGINAL INTACTO ---
   return (
-    <div className="max-w-4xl mx-auto py-20 px-6 font-sans text-slate-800">
-      <h1 className="text-4xl font-bold mb-8 text-slate-900">Términos y Condiciones de Uso</h1>
-      <p className="mb-6 text-slate-500 italic">Última revisión: 17 de abril de 2026</p>
+    <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6 font-sans">
+      
+      <div className="w-full max-w-md overflow-hidden rounded-[48px] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
+        
+        <div className="inline-flex items-center rounded-full bg-rose-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rose-700 mb-8">
+          <span className="mr-2 h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse"></span>
+          VORA Suite Live
+        </div>
 
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4 text-slate-900">1. Relación Contractual</h2>
-        <p className="leading-relaxed">
-          Los presentes términos regulan el acceso y uso de la plataforma <strong>VORA Suite</strong>, propiedad de <strong>Artemix S.A.</strong>, legalmente constituida en Guatemala. Al utilizar este servicio, el usuario acepta quedar vinculado por estos términos.
+        <h1 className="mb-4 text-4xl md:text-5xl font-black tracking-tighter text-slate-900">
+          VORA <span className="text-rose-700 uppercase">Suite</span>
+        </h1>
+        
+        <p className="mb-10 text-base text-slate-500 leading-relaxed px-2 font-medium">
+          La IA que gestiona tu negocio y agenda tus citas por WhatsApp al instante.
         </p>
-      </section>
 
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4 text-slate-900">2. Descripción de los Planes y Pagos</h2>
-        <p className="leading-relaxed mb-4">
-          VORA Suite ofrece diversos planes de suscripción que pueden variar en funciones y precio. Actualmente:
-        </p>
-        <ul className="list-disc ml-6 space-y-2 mb-4">
-          <li><strong>Plan Starter:</strong> Incluye gestión de agenda e IA por un costo mensual de $19.99.</li>
-          <li><strong>Periodo de Prueba:</strong> Los nuevos usuarios cuentan con 30 días de prueba gratuita.</li>
-        </ul>
-        <p className="leading-relaxed text-slate-600 italic">
-          Artemix S.A. se reserva el derecho de modificar los precios o crear nuevos planes (Pro, Premium, etc.) previa notificación a los usuarios activos.
-        </p>
-      </section>
+        <button
+          onClick={handleGoogleLogin}
+          disabled={isLoading}
+          className="group relative flex w-full items-center justify-center gap-3 rounded-2xl bg-rose-700 py-5 px-6 text-lg font-black text-white transition-all hover:bg-rose-800 hover:shadow-2xl hover:scale-[1.02] active:scale-95 disabled:opacity-50 shadow-xl"
+        >
+          <div className="rounded-lg bg-white p-1">
+            <svg className="h-5 w-5" viewBox="0 0 24 24">
+              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
+            </svg>
+          </div>
+          {isLoading ? 'Verificando...' : 'Comenzar ahora'}
+        </button>
 
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4 text-slate-900">3. Uso de la Inteligencia Artificial</h2>
-        <p className="leading-relaxed">
-          VORA utiliza modelos de lenguaje avanzados para interactuar por WhatsApp. Aunque nos esforzamos por la precisión, el usuario reconoce que la IA puede generar respuestas imprecisas. Es responsabilidad del usuario supervisar el entrenamiento y la configuración del asistente.
+        <p className="mt-10 text-[11px] text-slate-400 font-bold uppercase tracking-widest">
+          Tecnología de <span className="text-rose-700/50">Artemix S.A.</span>
         </p>
-      </section>
+      </div>
 
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4 text-slate-900">4. Limitación de Responsabilidad</h2>
-        <p className="leading-relaxed">
-          Artemix S.A. no se hace responsable por pérdidas de ingresos, citas no agendadas o errores técnicos derivados de fallas en servicios de terceros (como Google Calendar o WhatsApp). Nuestra responsabilidad se limita al monto pagado por el usuario en el último mes de servicio.
-        </p>
-      </section>
-
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4 text-slate-900">5. Propiedad Intelectual</h2>
-        <p className="leading-relaxed">
-          Todo el software, diseños, logos y algoritmos de VORA Suite son propiedad exclusiva de Artemix S.A.. Queda prohibida la reproducción o ingeniería inversa de la plataforma.
-        </p>
-      </section>
-
-      <section className="mb-10">
-        <h2 className="text-2xl font-semibold mb-4 text-slate-900">6. Ley Aplicable</h2>
-        <p className="leading-relaxed">
-          Estos términos se rigen por las leyes de la República de Guatemala. Cualquier controversia será resuelta ante los tribunales competentes de dicho país.
-        </p>
-      </section>
-
-      <footer className="mt-20 pt-10 border-t border-slate-100 text-sm text-slate-400 text-center">
-        Artemix S.A. - Guatemala.
-      </footer>
+      <div className="mt-12 flex flex-col items-center gap-4 opacity-50 hover:opacity-100 transition-opacity">
+        <div className="flex gap-6 text-[10px] font-black uppercase tracking-[0.2em] text-slate-500">
+          <a href="/privacidad" className="hover:text-rose-700 transition-colors">Privacidad</a>
+          <span className="text-slate-300">|</span>
+          <a href="/terminos" className="hover:text-rose-700 transition-colors">Términos</a>
+        </div>
+      </div>
     </div>
-  );
+  )
 }

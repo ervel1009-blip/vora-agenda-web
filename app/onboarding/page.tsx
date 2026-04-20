@@ -3,47 +3,43 @@
 import { useState, useEffect } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/lib/supabase/client'
-// 🚩 Importación del componente global
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
 
 const NICHES = [
-  { 
-    id: 'beauty', 
-    icon: '💅', 
-    title: 'Belleza y Uñas', 
-    desc: 'Salones, spas, manicuristas.' 
-  },
-  { 
-    id: 'health', 
-    icon: '🦷', 
-    title: 'Salud y Clínicas', 
-    desc: 'Dentistas, médicos, terapeutas.' 
-  },
-  { 
-    id: 'veterinary', 
-    icon: '🐾', 
-    title: 'Veterinaria', 
-    desc: 'Clínicas para mascotas.' 
-  },
-  { 
-    id: 'professional_services', // 🚩 ANTES ERA 'general'. Este cambio es vital.
-    icon: '🏢', 
-    title: 'Negocio General', 
-    desc: 'Asesorías, servicios profesionales.' 
-  },
+  { id: 'beauty', icon: '💅', title: 'Belleza y Uñas', desc: 'Salones, spas, manicuristas.' },
+  { id: 'health', icon: '🦷', title: 'Salud y Clínicas', desc: 'Dentistas, médicos, terapeutas.' },
+  { id: 'veterinary', icon: '🐾', title: 'Veterinaria', desc: 'Clínicas para mascotas.' },
+  { id: 'professional_services', icon: '🏢', title: 'Negocio General', desc: 'Asesorías, servicios profesionales.' },
 ]
+
 export default function OnboardingPage() {
   const router = useRouter()
   const supabase = createClient()
   const [selected, setSelected] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(true)
 
-  // --- LÓGICA (INTACTA) ---
+
+// --- LÓGICA DEL PORTERO (Corregida para evitar el error de dependencias) ---
   useEffect(() => {
     const syncAndCheck = async () => {
       const { data: { session } } = await supabase.auth.getSession()
       
       if (session) {
+        // 1. EL PORTERO: Verificamos si ya existe el giro de negocio
+        const { data: org } = await supabase
+          .from('organizations')
+          .select('business_type')
+          .eq('owner_id', session.user.id)
+          .single()
+
+        // Si ya tiene giro de negocio, lo mandamos al calendario
+        if (org?.business_type) {
+          console.log("🚀 Usuario con giro de negocio detectado. Redirigiendo...");
+          router.push('/dashboard/calendario')
+          return 
+        }
+
+        // 2. TU LÓGICA ORIGINAL (Sincronización de Token)
         const googleRefreshToken = session.provider_refresh_token;
 
         if (googleRefreshToken) {
@@ -58,22 +54,26 @@ export default function OnboardingPage() {
           
           console.log("✅ Google Refresh Token sincronizado.");
         }
+      } else {
+        // Si no hay sesión, al login
+        router.push('/')
+        return
       }
       setIsLoading(false)
     }
-    syncAndCheck()
-  }, [supabase])
-
-
-const handleSelectNiche = async (nicheId: string) => {
-    setIsLoading(true);
     
+    syncAndCheck()
+    // Dejamos las dependencias estables. 
+    // Si usas [supabase, router] asegúrate de no cambiarlas después.
+  }, [supabase, router])
+
+  // --- TU FUNCIÓN handleSelectNiche (INTACTA) ---
+  const handleSelectNiche = async (nicheId: string) => {
+    setIsLoading(true);
     try {
         const { data: { session } } = await supabase.auth.getSession();
         if (!session?.user) throw new Error("No hay sesión activa");
 
-        // 🚩 PASO 1: Obtener la PLANTILLA MAESTRA desde ai_prompts
-        // Agregamos un log para que verifiques en la consola el ID exacto que estás buscando
         console.log("🔍 Buscando plantilla maestra para el nicho:", nicheId);
 
         const { data: masterPrompt, error: fetchError } = await supabase
@@ -87,22 +87,20 @@ const handleSelectNiche = async (nicheId: string) => {
 
         if (fetchError) console.error("❌ Error de Supabase al traer prompt:", fetchError);
 
-        // 🚩 PASO 2: UPSERT con Integridad Total y Fallback "Hidratable"
         const { error: upsertError } = await supabase
           .from('organizations')
           .upsert({
             owner_id: session.user.id,
-            name: `VORA - ${nicheId.toUpperCase()}`, // Campo NOT NULL
+            name: `VORA - ${nicheId.toUpperCase()}`, 
             owner_email: session.user.email,
             business_type: nicheId,
-            subscription_tier: 'starter', // ✨ AGREGA ESTA LÍNEA AQUÍ
-            tax_id: 'CF', // Campo NOT NULL
-            whatsapp_phone_id: '931581660032728', // Campo NOT NULL
-            allowed_modules: ['vora-clinica'], // Campo NOT NULL
-            google_refresh_token: session.provider_refresh_token, //
+            subscription_tier: 'starter', 
+            tax_id: 'CF', 
+            whatsapp_phone_id: '931581660032728', 
+            allowed_modules: ['vora-clinica'], 
+            google_refresh_token: session.provider_refresh_token, 
             chat_context: { 
-              // 🧠 CLAVE: Si masterPrompt es null, usamos un fallback que SÍ tenga etiquetas.
-            system_prompt: masterPrompt?.system_prompt || "Eres la asistente virtual de {{name}}. Ayudo a agendar citas. Mis servicios son: {{services}} en moneda {{currency}}. Atiendo en: {{hours}}.", 
+              system_prompt: masterPrompt?.system_prompt || "Eres la asistente virtual de {{name}}. Ayudo a agendar citas. Mis servicios son: {{services}} en moneda {{currency}}. Atiendo en: {{hours}}.", 
               business_niche: nicheId 
             }
           }, { onConflict: 'owner_id' });
@@ -116,13 +114,14 @@ const handleSelectNiche = async (nicheId: string) => {
         console.error("❌ Error crítico en el flujo:", error.message);
         alert("Ocurrió un error: " + error.message);
     } finally {
-        setIsLoading(false); // Liberamos el spinner pase lo que pase
+        setIsLoading(false);
     }
-};
+  };
+
+  // --- TU DISEÑO (INTACTO) ---
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-6">
       
-      {/* 🚩 NUEVA BARRA GLOBAL: Paso 1 de 7 */}
       <OnboardingProgress currentStep={1} />
 
       <div className="w-full max-w-2xl bg-white rounded-[40px] p-10 md:p-14 shadow-xl shadow-slate-200 border border-slate-100">
