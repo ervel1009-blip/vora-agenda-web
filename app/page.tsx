@@ -1,11 +1,43 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState } from 'react'
+import { useState, useEffect } from 'react' // Añadimos useEffect
+import { useRouter } from 'next/navigation' // Añadimos useRouter para la redirección
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
+  const router = useRouter() // Inicializamos el router
+
+  // --- EL PORTERO (Lógica de validación) ---
+  useEffect(() => {
+    const checkUserStatus = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+
+      if (session) {
+        setIsLoading(true)
+        const user = session.user
+
+        // Consultamos si ya existe una organización para este usuario
+        const { data: org, error } = await supabase
+          .from('organizations')
+          .select('id')
+          .eq('owner_id', user.id)
+          .single()
+
+        if (org) {
+          // Caso: Ya registrado -> Al Dashboard
+          router.push('/dashboard')
+        } else {
+          // Caso: Nuevo -> Al Onboarding
+          router.push('/onboarding')
+        }
+      }
+    }
+
+    checkUserStatus()
+  }, [supabase, router])
+  // ------------------------------------------
 
   const handleGoogleLogin = async () => {
     setIsLoading(true)
@@ -14,7 +46,8 @@ export default function LoginPage() {
       options: {
         queryParams: { access_type: 'offline', prompt: 'consent' },
         scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        redirectTo: `${window.location.origin}/onboarding`,
+        // Redirigimos a una ruta intermedia o al onboarding para que el portero actúe
+        redirectTo: `${window.location.origin}/onboarding`, 
       },
     })
     if (error) {
@@ -23,14 +56,12 @@ export default function LoginPage() {
     }
   }
 
+  // --- MANTENEMOS TU DISEÑO ORIGINAL INTACTO ---
   return (
-    // Fondo limpio para que el Corinto resalte
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6 font-sans">
       
-      {/* Tarjeta con bordes extra redondeados como en tu captura */}
       <div className="w-full max-w-md overflow-hidden rounded-[48px] bg-white p-10 text-center shadow-[0_20px_60px_-15px_rgba(0,0,0,0.1)] border border-slate-200/60">
         
-        {/* Badge superior con el Corinto exacto de la imagen */}
         <div className="inline-flex items-center rounded-full bg-rose-50 px-4 py-1.5 text-[10px] font-bold uppercase tracking-widest text-rose-700 mb-8">
           <span className="mr-2 h-1.5 w-1.5 rounded-full bg-rose-600 animate-pulse"></span>
           VORA Suite Live
@@ -44,7 +75,6 @@ export default function LoginPage() {
           La IA que gestiona tu negocio y agenda tus citas por WhatsApp al instante.
         </p>
 
-        {/* BOTÓN: Usando el Corinto exacto de la tarjeta de Checkout de tu imagen */}
         <button
           onClick={handleGoogleLogin}
           disabled={isLoading}
@@ -58,7 +88,7 @@ export default function LoginPage() {
               <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
             </svg>
           </div>
-          {isLoading ? 'Conectando...' : 'Comenzar ahora'}
+          {isLoading ? 'Verificando...' : 'Comenzar ahora'}
         </button>
 
         <p className="mt-10 text-[11px] text-slate-400 font-bold uppercase tracking-widest">
