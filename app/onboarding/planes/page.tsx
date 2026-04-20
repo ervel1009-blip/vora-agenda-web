@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation' // 🚩 Necesario para la redirección
 
 const OnboardingProgress = ({ currentStep }: { currentStep: number }) => (
   <div className="w-full max-w-xl mb-8">
@@ -41,9 +42,54 @@ const PLANS = [
 
 export default function PlanesPage() {
   const supabase = createClient()
-  const [loading, setLoading] = useState(false)
+  const router = useRouter()
+  const [loading, setLoading] = useState(true) // 🚩 Iniciamos en true para el Portero
   const [selectedPlan, setSelectedPlan] = useState('starter')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
+
+  // --- 🚪 EL PORTERO: VALIDACIÓN DE INTEGRIDAD Y ESTADO ---
+  useEffect(() => {
+    const checkOnboardingIntegrity = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) { router.push('/'); return; }
+
+      const userId = session.user.id
+
+      // 1. Consultar organización y datos clave
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('owner_id', userId)
+        .single()
+
+      // Validar pasos anteriores (1 al 4)
+      if (!org?.business_type) { router.push('/onboarding'); return; }
+      if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
+      if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
+
+      // Validar Paso 5 (Servicios)
+      const { count: servicesCount } = await supabase
+        .from('services_config')
+        .select('*', { count: 'exact', head: true })
+        .eq('organization_id', org.id)
+
+      if (!servicesCount || servicesCount === 0) {
+        router.push('/onboarding/servicios')
+        return
+      }
+
+      // 🚀 SALTO INTELIGENTE: Si ya eligió plan o está en trial, al Dashboard
+      if (org.subscription_plan === 'free_trial' || org.subscription_status === 'active') {
+        console.log("✅ Plan ya detectado. Redirigiendo al Dashboard...");
+        router.push('/dashboard/suscripcion')
+        return
+      }
+
+      setLoading(false)
+    }
+
+    checkOnboardingIntegrity()
+  }, [supabase, router])
 
   const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
     setLoading(true)
@@ -55,7 +101,6 @@ export default function PlanesPage() {
       const trialExpiry = new Date()
       trialExpiry.setDate(trialExpiry.getDate() + trialDays)
 
-      // Actualización real en la base de datos
       const { error } = await supabase
         .from('organizations')
         .update({ 
@@ -82,6 +127,15 @@ export default function PlanesPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // --- SPINNER MIENTRAS EL PORTERO VERIFICA ---
+  if (loading && !selectedPlan) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
+      </div>
+    )
   }
 
   return (
@@ -130,7 +184,7 @@ export default function PlanesPage() {
                   isSelected ? 'border-rose-700 bg-white shadow-xl scale-105' : 'border-white bg-white/60 shadow-sm'
                 }`}
               >
-                 <div>
+                  <div>
                     <h3 className={`text-xs font-black uppercase tracking-[0.2em] mb-4 ${isSelected ? 'text-rose-700' : 'text-slate-400'}`}>
                       {plan.name}
                     </h3>
@@ -146,13 +200,13 @@ export default function PlanesPage() {
                     <p className="text-slate-500 font-medium leading-relaxed mb-8 mt-4">
                       {plan.desc}
                     </p>
-                 </div>
-                 
-                 <div className={`w-full py-4 rounded-2xl font-black text-center transition-all ${
-                   isSelected ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-400'
-                 }`}>
-                   {isSelected ? 'Seleccionado' : 'Elegir'}
-                 </div>
+                  </div>
+                  
+                  <div className={`w-full py-4 rounded-2xl font-black text-center transition-all ${
+                    isSelected ? 'bg-rose-700 text-white' : 'bg-slate-100 text-slate-400'
+                  }`}>
+                    {isSelected ? 'Seleccionado' : 'Elegir'}
+                  </div>
               </div>
             )
           })}
