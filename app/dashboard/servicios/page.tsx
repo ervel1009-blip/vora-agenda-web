@@ -287,18 +287,34 @@ export default function ServiciosPage() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Precio ({orgData?.currency_symbol || 'Q'})</label>
-                  <input type="number" className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-rose-700 font-black outline-none"
-                    value={form.price} onChange={e => setForm({...form, price: e.target.value})} placeholder="0.00" />
-                </div>
-                <div className="space-y-1">
-                  <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Buffer / Limpieza (min)</label>
-                  <input type="number" className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-orange-600 font-bold outline-none"
-                    value={form.buffer_after_minutes} onChange={e => setForm({...form, buffer_after_minutes: e.target.value})} placeholder="0" />
-                </div>
-              </div>
+<div className="grid grid-cols-2 gap-4 items-end"> {/* 🚩 items-end mantiene los inputs alineados */}
+  <div className="space-y-1">
+    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block leading-tight">
+      Precio ({orgData?.currency_symbol || 'Q'})
+    </label>
+    <input 
+      type="number" 
+      className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-rose-700 font-black outline-none focus:border-rose-600 transition-all"
+      value={form.price} 
+      onChange={e => setForm({...form, price: e.target.value})} 
+      placeholder="0.00" 
+    />
+  </div>
+
+  <div className="space-y-1">
+    <label className="text-[9px] font-black text-slate-400 uppercase tracking-widest ml-1 block leading-tight">
+      Buffer / Limpieza <span className="text-rose-400/60">(min)</span>
+    </label>
+    <input 
+      type="number" 
+      className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-orange-600 font-bold outline-none focus:border-rose-600 transition-all"
+      value={form.buffer_after_minutes} 
+      onChange={e => setForm({...form, buffer_after_minutes: e.target.value})} 
+      placeholder="0" 
+    />
+  </div>
+</div>
+
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Descripción</label>
