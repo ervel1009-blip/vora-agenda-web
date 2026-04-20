@@ -8,7 +8,7 @@ import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
 export default function PerfilNegocioPage() {
   const supabase = createClient()
   const router = useRouter()
-  const [isLoading, setIsLoading] = useState(true) // Iniciamos en true para el Portero
+  const [isLoading, setIsLoading] = useState(true) 
   const [countries, setCountries] = useState<any[]>([])
   
   const [form, setForm] = useState({
@@ -21,7 +21,7 @@ export default function PerfilNegocioPage() {
     country_code: ''
   })
 
-  // --- 🚪 EL PORTERO + CARGA DE DATOS ---
+  // --- 🚪 EL PORTERO LINEAL (Paso 3/7) ---
   useEffect(() => {
     const fetchInitialData = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -47,24 +47,29 @@ export default function PerfilNegocioPage() {
         .eq('owner_id', session.user.id)
         .single()
 
+      // Validar hacia atrás (Paso 1)
       if (!org?.business_type) {
-        router.push('/onboarding') // No ha hecho el paso 1
+        console.log("⚠️ Falta giro de negocio. Regresando al Paso 1...");
+        router.push('/onboarding')
         return
       }
 
+      // Validar hacia atrás (Paso 2)
       if (!org?.google_calendar_id) {
-        router.push('/onboarding/calendario') // No ha hecho el paso 2
+        console.log("⚠️ Falta calendario. Regresando al Paso 2...");
+        router.push('/dashboard/calendario') 
         return
       }
 
-      // 🔎 Si YA tiene teléfono y dirección, significa que ya pasó por aquí
+      // 🚀 Validar hacia adelante: ¿Ya se completó este Paso 3?
+      // Si ya tiene teléfono y dirección, avanzamos exclusivamente al Paso 4 (Horarios)
       if (org.public_phone && org.address) {
-        console.log("🚀 Perfil ya completado. Enviando al siguiente paso...");
+        console.log("✅ Perfil ya completado. Avanzando al Paso 4...");
         router.push('/dashboard/horarios')
         return
       }
 
-      // 3. Cargar datos para el formulario si existen
+      // 3. Cargar datos para el formulario si existen (Persistencia)
       if (org) {
         const { data: member } = await supabase
           .from('team_members_v_nexus')
@@ -114,23 +119,10 @@ export default function PerfilNegocioPage() {
         .eq('owner_id', user.id)
         .single()
 
-      const { data: hoursData } = await supabase
-        .from('operating_hours')
-        .select('*')
-        .eq('org_id', orgData.id)
-
-      const { data: servicesData } = await supabase
-        .from('services_config')
-        .select('*')
-        .eq('org_id', orgData.id)
-
-      const { data: templateData } = await supabase
-        .from('ai_prompts')
-        .select('system_prompt')
-        .eq('business_type', orgData.business_type)
-        .eq('slug', 'main_assistant')
-        .eq('is_active', true)
-        .maybeSingle()
+      // Obtenemos datos para hidratar el prompt (Lógica intacta)
+      const { data: hoursData } = await supabase.from('operating_hours').select('*').eq('org_id', orgData.id)
+      const { data: servicesData } = await supabase.from('services_config').select('*').eq('organization_id', orgData.id)
+      const { data: templateData } = await supabase.from('ai_prompts').select('system_prompt').eq('business_type', orgData.business_type).eq('slug', 'main_assistant').eq('is_active', true).maybeSingle()
 
       let systemPrompt = templateData?.system_prompt || "Asistente de {{name}}. Moneda: {{currency}}."
 
@@ -181,6 +173,7 @@ export default function PerfilNegocioPage() {
       if (teamError) console.error("⚠️ Error sutil al registrar miembro del equipo:", teamError.message);
       if (error) throw error
 
+      // Redirección lineal al Paso 4
       router.push('/dashboard/horarios')
     } catch (error: any) {
       console.error("❌ Error crítico:", error.message)
@@ -190,7 +183,6 @@ export default function PerfilNegocioPage() {
     }
   }
 
-  // Si está cargando el portero, mostramos el spinner para no parpadear el diseño
   if (isLoading && !form.name) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-slate-50">
