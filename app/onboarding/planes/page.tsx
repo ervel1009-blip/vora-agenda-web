@@ -35,50 +35,59 @@ export default function PlanesPage() {
       const { data: { session } } = await supabase.auth.getSession()
       if (!session) { router.push('/'); return; }
 
-      const { data: org } = await supabase
+      const { data: org, error } = await supabase
         .from('organizations')
         .select('*')
         .eq('owner_id', session.user.id)
         .single()
 
-      // 1. VALIDACIÓN HACIA ATRÁS (Cascada)
-      if (!org?.business_type) { router.push('/onboarding'); return; }
-      if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
-      if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
+      // 🔍 DEBUG: Abre la consola del navegador (F12) y dime qué sale aquí
+      console.log("🛠️ DEBUG VORA - Datos de Org:", org);
+      console.log("📅 DEBUG VORA - Calendar ID:", org?.google_calendar_id);
 
-      // Validar Paso 4: Horarios
-      const { count: hoursCount } = await supabase
-        .from('operating_hours')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', org.id)
-      if (!hoursCount || hoursCount === 0) { router.push('/dashboard/horarios'); return; }
-
-      // Validar Paso 5: Servicios
-      const { count: servicesCount } = await supabase
-        .from('services_config')
-        .select('*', { count: 'exact', head: true })
-        .eq('organization_id', org.id)
-      if (!servicesCount || servicesCount === 0) { router.push('/dashboard/servicios'); return; }
-
-      // 2. VALIDACIÓN HACIA ADELANTE (Ruptura del bucle)
-      // Si ya tiene un plan pendiente o activo, saltamos al Paso 7 (Suscripción/Checkout)
-      if (org.subscription_status === 'pending_payment') {
-        console.log("✅ Plan pendiente detectado. Avanzando al Checkout...");
-        router.push('/dashboard/suscripcion'); 
+      if (error) {
+        console.error("❌ Error cargando Org:", error);
         return;
       }
 
-      if (org.subscription_status === 'active') {
-        console.log("✅ Usuario ya activo. Redirigiendo al Dashboard...");
-        router.push('/dashboard/calendario'); 
-        return;
+      // 🚩 EL FILTRO DETERMINISTA
+      if (!org?.business_type) { 
+        console.log("❌ Fallo Paso 1: Regresando a /onboarding");
+        router.push('/onboarding'); return; 
+      }
+      
+      if (!org?.google_calendar_id) { 
+        console.log("❌ Fallo Paso 2: Regresando a /dashboard/calendario");
+        router.push('/dashboard/calendario'); return; 
+      }
+      
+      if (!org?.public_phone || !org?.address) { 
+        console.log("❌ Fallo Paso 3: Regresando a /onboarding/perfil");
+        router.push('/onboarding/perfil'); return; 
       }
 
+      // 🛡️ Validación de Horarios (Paso 4)
+      const { count: hCount } = await supabase.from('operating_hours').select('*', { count: 'exact', head: true }).eq('org_id', org.id);
+      if (!hCount || hCount === 0) { 
+        console.log("❌ Fallo Paso 4: Regresando a /dashboard/horarios");
+        router.push('/dashboard/horarios'); return; 
+      }
+
+      // 🛡️ Validación de Servicios (Paso 5)
+      const { count: sCount } = await supabase.from('services_config').select('*', { count: 'exact', head: true }).eq('organization_id', org.id);
+      if (!sCount || sCount === 0) { 
+        console.log("❌ Fallo Paso 5: Regresando a /dashboard/servicios");
+        router.push('/dashboard/servicios'); return; 
+      }
+
+      // Si pasó todo esto, el usuario puede elegir plan
       setLoading(false)
     }
 
     checkOnboardingIntegrity()
   }, [supabase, router])
+
+
 
   const handleConfirmPlan = async (mode: 'trial_soft' | 'trial_hard') => {
     setLoading(true)
