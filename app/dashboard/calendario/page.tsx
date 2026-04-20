@@ -85,19 +85,39 @@ export default function CalendarPage() {
     if (!selectedId) return
     setIsSaving(true)
 
-    const { data: { user } } = await supabase.auth.getUser()
-    const { error } = await supabase
-      .from('organizations')
-      .update({ google_calendar_id: selectedId })
-      .eq('owner_id', user?.id)
+    try {
+      const { data: { session } } = await supabase.auth.getSession()
+      if (!session) throw new Error("No hay sesión activa");
 
-    if (!error) {
-      // Redirección lineal al siguiente paso
+      console.log("💾 Guardando Calendar ID:", selectedId, "para el usuario:", session.user.id);
+
+      // 🚩 EL CAMBIO CLAVE: Asegurarnos de que el update llegue a la fila correcta
+      const { data, error } = await supabase
+        .from('organizations')
+        .update({ 
+          google_calendar_id: selectedId,
+          updated_at: new Date().toISOString() 
+        })
+        .eq('owner_id', session.user.id) // Usamos owner_id que es la llave que tenemos
+        .select() // Esto nos confirma si se actualizó algo
+
+      if (error) throw error;
+
+      if (!data || data.length === 0) {
+        throw new Error("No se encontró la organización para actualizar. Revisa los permisos.");
+      }
+
+      console.log("✅ Guardado exitoso en Supabase:", data);
+
+      // Redirección lineal al Paso 3
       router.push('/onboarding/perfil');
-    } else {
-      console.error("Error al guardar calendario:", error.message)
+
+    } catch (err: any) {
+      console.error("❌ Error al guardar calendario:", err.message);
+      alert("Error al vincular: " + err.message);
+    } finally {
+      setIsSaving(false);
     }
-    setIsSaving(false)
   }
 
   return (
