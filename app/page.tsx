@@ -1,37 +1,26 @@
 'use client'
 
 import { createClient } from '@/lib/supabase/client'
-import { useState, useEffect } from 'react' // Añadimos useEffect
-import { useRouter } from 'next/navigation' // Añadimos useRouter para la redirección
+import { useState, useEffect } from 'react'
+import { useRouter } from 'next/navigation'
 
 export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false)
   const supabase = createClient()
-  const router = useRouter() // Inicializamos el router
+  const router = useRouter()
 
-  // --- EL PORTERO (Lógica de validación) ---
+  // --- 🚪 EL PORTERO (Lógica de validación optimizada) ---
   useEffect(() => {
     const checkUserStatus = async () => {
       const { data: { session } } = await supabase.auth.getSession()
 
       if (session) {
         setIsLoading(true)
-        const user = session.user
-
-        // Consultamos si ya existe una organización para este usuario
-        const { data: org, error } = await supabase
-          .from('organizations')
-          .select('id')
-          .eq('owner_id', user.id)
-          .single()
-
-        if (org) {
-          // Caso: Ya registrado -> Al Dashboard
-          router.push('/dashboard')
-        } else {
-          // Caso: Nuevo -> Al Onboarding
-          router.push('/onboarding')
-        }
+        // 🚀 REDIRECCIÓN INTELIGENTE:
+        // En lugar de enviarlo a un lugar fijo, lo mandamos al flujo de onboarding.
+        // El layout.tsx se encargará de ver si ya es 'active' y mandarlo al calendario,
+        // o si le falta algún paso intermedio.
+        router.push('/onboarding')
       }
     }
 
@@ -46,7 +35,7 @@ export default function LoginPage() {
       options: {
         queryParams: { access_type: 'offline', prompt: 'consent' },
         scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
-        // Redirigimos a una ruta intermedia o al onboarding para que el portero actúe
+        // Redirigimos siempre a onboarding para que el sistema de reubicación actúe tras el login
         redirectTo: `${window.location.origin}/onboarding`, 
       },
     })
@@ -56,7 +45,7 @@ export default function LoginPage() {
     }
   }
 
-  // --- MANTENEMOS TU DISEÑO ORIGINAL INTACTO ---
+  // --- TU DISEÑO ORIGINAL (INTACTO) ---
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6 font-sans">
       
