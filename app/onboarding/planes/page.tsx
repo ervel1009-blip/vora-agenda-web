@@ -29,7 +29,7 @@ export default function PlanesPage() {
   const [selectedPlan, setSelectedPlan] = useState('starter')
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
 
-  // --- 🚪 EL PORTERO: SINCRONIZACIÓN TOTAL ---
+  // --- 🚪 EL PORTERO LINEAL (Paso 6/7) ---
   useEffect(() => {
     const checkOnboardingIntegrity = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -41,29 +41,36 @@ export default function PlanesPage() {
         .eq('owner_id', session.user.id)
         .single()
 
-      // 🛡️ Seguridad de pasos previos
+      // 1. VALIDACIÓN HACIA ATRÁS (Cascada)
       if (!org?.business_type) { router.push('/onboarding'); return; }
-      if (!org?.google_calendar_id) { router.push('/onboarding/calendario'); return; }
+      if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
       if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
 
-      // 🛡️ Seguridad de Servicios
-      const { count } = await supabase
+      // Validar Paso 4: Horarios
+      const { count: hoursCount } = await supabase
+        .from('operating_hours')
+        .select('*', { count: 'exact', head: true })
+        .eq('org_id', org.id)
+      if (!hoursCount || hoursCount === 0) { router.push('/dashboard/horarios'); return; }
+
+      // Validar Paso 5: Servicios
+      const { count: servicesCount } = await supabase
         .from('services_config')
         .select('*', { count: 'exact', head: true })
         .eq('organization_id', org.id)
-      if (!count || count === 0) { router.push('/onboarding/servicios'); return; }
+      if (!servicesCount || servicesCount === 0) { router.push('/dashboard/servicios'); return; }
 
-      // 🚀 RUPTURA DEL BUCLE:
-      // Si el estado es 'pending_payment', significa que ya eligió plan pero le falta la tarjeta.
-      // Lo mandamos de una vez al Paso 7 (Suscripción).
+      // 2. VALIDACIÓN HACIA ADELANTE (Ruptura del bucle)
+      // Si ya tiene un plan pendiente o activo, saltamos al Paso 7 (Suscripción/Checkout)
       if (org.subscription_status === 'pending_payment') {
+        console.log("✅ Plan pendiente detectado. Avanzando al Checkout...");
         router.push('/dashboard/suscripcion'); 
         return;
       }
 
-      // Si ya es 'active', ya terminó todo el onboarding.
       if (org.subscription_status === 'active') {
-        router.push('/dashboard/suscripcion'); 
+        console.log("✅ Usuario ya activo. Redirigiendo al Dashboard...");
+        router.push('/dashboard/calendario'); 
         return;
       }
 
@@ -83,7 +90,7 @@ export default function PlanesPage() {
       const trialExpiry = new Date()
       trialExpiry.setDate(trialExpiry.getDate() + trialDays)
 
-      // 🚩 ESTADO PENDIENTE: Para que el portero de la siguiente página lo deje entrar
+      // El estado 'pending_payment' permite que el paso 7 lo deje entrar
       const newStatus = mode === 'trial_soft' ? 'active' : 'pending_payment';
 
       const { error } = await supabase
@@ -104,13 +111,12 @@ export default function PlanesPage() {
         const waMsg = encodeURIComponent(`¡Hola VORA! Elegí el plan ${selectedPlan} (${billingCycle}). Mi correo es ${user.email}. ¡Quiero mis 7 días gratis!`);
         window.location.assign(`https://wa.me/50251151814?text=${waMsg}`);
       } else {
-        // Redirección al Paso 7 (Checkout de Tarjeta)
+        // Redirección lineal al Paso 7 (Checkout de Tarjeta)
         router.push('/dashboard/suscripcion'); 
       }
     } catch (err: any) {
       console.error("Error al guardar plan:", err.message)
       alert("Error al actualizar el plan.")
-    } finally {
       setLoading(false)
     }
   }
