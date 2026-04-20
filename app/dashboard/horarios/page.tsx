@@ -61,7 +61,8 @@ export default function HorariosPage() {
         return
       }
 
-      // 2. CARGA DE HORARIOS (Tu lógica original)
+  
+     // 2. CARGA DE HORARIOS + SALTO AUTOMÁTICO (Portero inteligente)
       if (org) {
         setOrgId(org.id)
         const { data: hoursData } = await supabase
@@ -70,17 +71,13 @@ export default function HorariosPage() {
           .eq('org_id', org.id)
 
         if (hoursData && hoursData.length > 0) {
-          const loadedSchedule: any = {}
-          hoursData.forEach(item => {
-            loadedSchedule[item.day_of_week] = { 
-              open: item.open_time, 
-              close: item.close_time, 
-              closed: item.is_closed 
-            }
-          })
-          setSchedule(loadedSchedule)
+          // 🚀 EL SALTO: Si ya existen horarios, el usuario ya cumplió este paso.
+          // Lo mandamos al siguiente paso sin hacerlo esperar.
+          console.log("✅ Horarios detectados en DB. Saltando al paso de Servicios...");
+          router.push('/onboarding/servicios') // 🚩 Verifica que esta sea tu ruta del Paso 5
+          return // Importante para detener la ejecución aquí
         } else {
-          // Valores por defecto
+          // Valores por defecto (Solo se cargan si es la primera vez que entra)
           const defaults: any = {}
           DAYS.forEach(d => { 
             defaults[d.id] = { open: '08:00:00', close: '17:00:00', closed: d.id === 0 } 
@@ -89,7 +86,8 @@ export default function HorariosPage() {
         }
       }
       setLoading(false)
-    }
+
+
     fetchHoursAndCheck()
   }, [supabase, router])
 
