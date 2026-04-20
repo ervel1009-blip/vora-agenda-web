@@ -12,9 +12,46 @@ export default function CalendarPage() {
   const [selectedId, setSelectedId] = useState('')
   const [isLoading, setIsLoading] = useState(true)
   const [isSaving, setIsSaving] = useState(false)
-  const [errorStatus, setErrorStatus] = useState<string | null>(null) // 🚩 Para capturar el error de la Edge Function
+  const [errorStatus, setErrorStatus] = useState<string | null>(null)
 
-  // --- LÓGICA (INTACTA) ---
+  // --- 🚪 EL PORTERO: VALIDACIÓN DE ACCESO ---
+  useEffect(() => {
+    const gatekeeper = async () => {
+      const { data: { session } } = await supabase.auth.getSession()
+      
+      if (!session) {
+        router.push('/')
+        return
+      }
+
+      // Verificamos el estado real en la base de datos
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('business_type, google_calendar_id')
+        .eq('owner_id', session.user.id)
+        .single()
+
+      // Caso A: No ha elegido giro de negocio -> Regresa al Paso 1
+      if (!org?.business_type) {
+        router.push('/onboarding')
+        return
+      }
+
+      // Caso B: YA tiene calendario configurado -> Va al Panel de Control (Dashboard final)
+      if (org?.google_calendar_id) {
+        console.log("🚀 Configuración completa. Enviando al Panel de Control...");
+        router.push('/dashboard/suscripcion') // O la ruta que definamos como inicio
+        return
+      }
+
+      // Caso C: Tiene giro pero no calendario -> Se queda aquí (Paso 2)
+      fetchRealGoogleCalendars()
+    }
+
+    gatekeeper()
+  }, [supabase, router])
+
+  // --- LÓGICA ORIGINAL (INTACTA) ---
   const fetchRealGoogleCalendars = async () => {
     setErrorStatus(null)
     setIsLoading(true)
@@ -26,7 +63,6 @@ export default function CalendarPage() {
         body: { userId: session.user.id }
       })
 
-      // 🚩 Si la función retorna error (ej. 404 o 500), lo capturamos aquí
       if (error) throw error;
 
       if (data?.calendars) {
@@ -44,10 +80,6 @@ export default function CalendarPage() {
     }
   }
 
-  useEffect(() => {
-    fetchRealGoogleCalendars()
-  }, [supabase])
-
   const handleSaveCalendar = async () => {
     if (!selectedId) return
     setIsSaving(true)
@@ -59,19 +91,18 @@ export default function CalendarPage() {
       .eq('owner_id', user?.id)
 
     if (!error) {
+      // Al guardar con éxito, seguimos al siguiente paso del perfil
       router.push('/onboarding/perfil');
     }
     setIsSaving(false)
   }
 
+  // --- TU DISEÑO ORIGINAL (INTACTO) ---
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-6">
-      
-      {/* 🚩 BARRA DE PROGRESO: PASO 2 */}
       <OnboardingProgress currentStep={2} />
 
       <div className="w-full max-w-xl bg-white rounded-[40px] shadow-xl shadow-slate-200 border border-slate-100 overflow-hidden">
-        
         <div className="p-10 md:p-14 text-center border-b border-slate-50">
           <h1 className="text-3xl font-black text-rose-950 tracking-tighter leading-tight mb-3">
             Conectar Agenda <span className="text-rose-700">Real</span>
@@ -90,7 +121,6 @@ export default function CalendarPage() {
               </p>
             </div>
           ) : errorStatus ? (
-            // 🚩 ESTADO DE ERROR (Para diagnosticar el problema)
             <div className="text-center py-6 space-y-6">
                <div className="bg-rose-50 border border-rose-100 p-6 rounded-3xl">
                  <span className="text-4xl mb-4 block">⚠️</span>
