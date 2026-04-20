@@ -14,7 +14,7 @@ export default function CalendarPage() {
   const [isSaving, setIsSaving] = useState(false)
   const [errorStatus, setErrorStatus] = useState<string | null>(null)
 
- // --- 🚪 EL PORTERO LINEAL (Paso 2/7) ---
+  // --- 🚪 EL PORTERO LINEAL (Paso 2/7) ---
   useEffect(() => {
     const gatekeeper = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -30,30 +30,29 @@ export default function CalendarPage() {
         .eq('owner_id', session.user.id)
         .single()
 
-      // 1. Validar hacia atrás: ¿Hizo el Paso 1?
+      // 1. Validar hacia atrás: ¿Se completó el Paso 1 (Giro de negocio)?
       if (!org?.business_type) {
         console.log("⚠️ Falta giro de negocio. Regresando al Paso 1...");
         router.push('/onboarding')
         return
       }
 
-      // 2. Validar hacia adelante: ¿Ya hizo este Paso 2?
-      // 🚩 CORRECCIÓN: Saltar solo al Paso 3 (Perfil), no al final.
+      // 2. Validar hacia adelante: ¿Ya se completó este Paso 2?
+      // Si ya existe el ID de calendario, avanzamos exclusivamente al Paso 3 (Perfil)
       if (org?.google_calendar_id) {
-        console.log("✅ Calendario ya vinculado. Avanzando al Paso 3 (Perfil)...");
+        console.log("✅ Calendario ya vinculado. Avanzando al Paso 3...");
         router.push('/onboarding/perfil') 
         return 
       }
 
-      // Si llegó aquí, es que no tiene calendario. Cargamos los datos.
+      // Si no se ha completado el paso, procedemos a cargar los calendarios
       fetchRealGoogleCalendars()
     }
 
     gatekeeper()
   }, [supabase, router])
 
-
-  // --- LÓGICA ORIGINAL (INTACTA) ---
+  // --- LÓGICA DE SINCRONIZACIÓN ---
   const fetchRealGoogleCalendars = async () => {
     setErrorStatus(null)
     setIsLoading(true)
@@ -93,13 +92,14 @@ export default function CalendarPage() {
       .eq('owner_id', user?.id)
 
     if (!error) {
-      // Al guardar con éxito, seguimos al siguiente paso del perfil
+      // Redirección lineal al siguiente paso
       router.push('/onboarding/perfil');
+    } else {
+      console.error("Error al guardar calendario:", error.message)
     }
     setIsSaving(false)
   }
 
-  // --- TU DISEÑO ORIGINAL (INTACTO) ---
   return (
     <div className="min-h-screen w-full bg-slate-50 flex flex-col items-center justify-center p-6">
       <OnboardingProgress currentStep={2} />
