@@ -17,17 +17,17 @@ const MENU_ITEMS = [
     ]
   },
   {
-    group: 'Negocio',
+    group: 'Finanzas',
     items: [
       { name: 'Suscripción', href: '/dashboard/suscripcion', icon: TrendingUp },
-      { name: 'Pagos', href: '/dashboard/suscripcion/tarjeta', icon: CreditCard },
-      { name: 'Facturación', href: '/dashboard/suscripcion/historial', icon: History },
+      { name: 'Métodos de Pago', href: '/dashboard/suscripcion/tarjeta', icon: CreditCard },
+      { name: 'Facturas FEL', href: '/dashboard/suscripcion/historial', icon: History },
     ]
   },
   {
-    group: 'Asistencia',
+    group: 'Soporte',
     items: [
-      { name: 'Soporte IA', href: '/dashboard/soporte', icon: LifeBuoy },
+      { name: 'Asistente IA', href: '/dashboard/soporte', icon: LifeBuoy },
       { name: 'Configuración', href: '/dashboard/configuracion', icon: Settings },
     ]
   }
@@ -38,16 +38,15 @@ export default function Sidebar() {
 
   return (
     <aside className="w-full lg:w-72 bg-white border-r border-slate-100 flex flex-col h-full">
-      {/* Logo Area: Identidad VORA */}
       <div className="p-8">
         <div className="flex items-center gap-3">
-          {/* El cuadro de la V ahora es Indigo */}
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
-            <span className="text-white font-black text-xl">V</span>
+          {/* La "V" ahora es Palo Rosa con sombra suave */}
+          <div className="w-11 h-11 bg-rose-400 rounded-2xl flex items-center justify-center shadow-lg shadow-rose-100">
+            <span className="text-white font-black text-2xl">V</span>
           </div>
           <div>
             <h2 className="text-xl font-black text-slate-950 tracking-tighter">VORA</h2>
-            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Artemix S.A.</p>
+            <p className="text-[10px] font-black text-rose-500 uppercase tracking-widest">Artemix S.A.</p>
           </div>
         </div>
       </div>
@@ -65,13 +64,13 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all group ${
+                    className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all group ${
                       isActive 
-                        ? 'bg-indigo-50 text-indigo-600 shadow-sm' 
+                        ? 'bg-rose-50 text-rose-600 shadow-sm' 
                         : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
                     }`}
                   >
-                    <item.icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
+                    <item.icon className={`w-5 h-5 ${isActive ? 'text-rose-500' : 'text-slate-400 group-hover:text-slate-600'}`} />
                     {item.name}
                   </Link>
                 )
@@ -81,10 +80,10 @@ export default function Sidebar() {
         ))}
       </nav>
 
-      <div className="p-4 border-t border-slate-50">
-        <button className="flex items-center gap-3 w-full px-4 py-4 rounded-2xl text-slate-400 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:text-indigo-600 transition-all">
+      <div className="p-6 border-t border-slate-50">
+        <button className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-slate-400 font-bold text-xs uppercase tracking-widest hover:bg-rose-50 hover:text-rose-600 transition-all">
           <LogOut className="w-5 h-5" />
-          Cerrar Sesión
+          Salir
         </button>
       </div>
     </aside>
