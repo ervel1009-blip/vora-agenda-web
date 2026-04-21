@@ -1,89 +1,170 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
-import Sidebar from '@/components/dashboard/Sidebar'
-import { usePathname } from 'next/navigation'
-import { Menu, X } from 'lucide-react' // Importamos iconos para el menú
+import { 
+  Activity, 
+  AlertCircle, 
+  CheckCircle2, 
+  ChevronRight, 
+  Users, 
+  Image as ImageIcon,
+  Calendar,
+  Zap
+} from 'lucide-react'
 
-export default function DashboardLayout({ children }: { children: React.ReactNode }) {
+export default function DashboardHomePage() {
   const supabase = createClient()
-  const pathname = usePathname()
-  const [isSidebarVisible, setIsSidebarVisible] = useState(false) // Si el usuario es active
-  const [isMenuOpen, setIsMenuOpen] = useState(false) // Si el menú móvil está desplegado
-  const [loading, setLoading] = useState(true)
+  const [data, setData] = useState<any>(null)
+  const [specialistsCount, setSpecialistsCount] = useState(0)
+  const [logs, setLogs] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
-    const checkAccess = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
-      if (session) {
-        const { data: org } = await supabase.from('organizations').select('subscription_status').eq('owner_id', session.user.id).single()
-        if (org?.subscription_status === 'active') setIsSidebarVisible(true)
+    const fetchDashboardData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: org } = await supabase.from('organizations').select('*').eq('owner_id', user?.id).single()
+      
+      if (org) {
+        setData(org)
+        const { count } = await supabase.from('specialists').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
+        setSpecialistsCount(count || 0)
+        const { data: systemLogs } = await supabase.from('system_logs').select('*').eq('org_id', org.id).order('created_at', { ascending: false }).limit(4)
+        setLogs(systemLogs || [])
       }
-      setLoading(false)
+      setIsLoading(false)
     }
-    checkAccess()
+    fetchDashboardData()
   }, [supabase])
 
-  // Cerrar el menú automáticamente cuando cambies de página en el cel
-  useEffect(() => {
-    setIsMenuOpen(false)
-  }, [pathname])
-
-  if (loading) return <div className="min-h-screen flex items-center justify-center bg-slate-50"><span className="animate-spin h-10 w-10 border-b-2 border-rose-600"></span></div>
+  if (isLoading || !data) return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <span className="animate-spin h-8 w-8 border-4 border-rose-500 border-t-transparent rounded-full"></span>
+    </div>
+  )
 
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans overflow-hidden">
+    <div className="space-y-10 max-w-7xl mx-auto text-slate-900 pb-20">
       
-      {/* SIDEBAR: Ahora es responsivo */}
-      {isSidebarVisible && (
-        <>
-          {/* Overlay oscuro para cerrar el menú al tocar afuera (Solo móvil) */}
-          {isMenuOpen && (
-            <div 
-              className="fixed inset-0 bg-slate-900/40 z-40 lg:hidden backdrop-blur-sm"
-              onClick={() => setIsMenuOpen(false)}
-            />
-          )}
-          
-          <div className={`
-            fixed inset-y-0 left-0 z-50 transform transition-transform duration-300 ease-in-out bg-white
-            lg:relative lg:translate-x-0 w-72
-            ${isMenuOpen ? 'translate-x-0' : '-translate-x-full'}
-          `}>
-            <Sidebar />
-            {/* Botón para cerrar en móvil dentro del sidebar */}
-            <button 
-              onClick={() => setIsMenuOpen(false)}
-              className="lg:hidden absolute top-6 right-4 p-2 text-slate-400"
-            >
-              <X size={24} />
-            </button>
+      {/* HEADER: MINIMALISTA & ELEGANTE */}
+      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 bg-transparent px-2">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-2 w-2 bg-rose-500 rounded-full animate-ping"></div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">System Live</span>
           </div>
-        </>
-      )}
-
-      <main className="flex-1 flex flex-col min-w-0 h-screen">
-        {/* TOP BAR MÓVIL (Solo se ve si el sidebar debe existir) */}
-        {isSidebarVisible && (
-          <div className="lg:hidden bg-white border-b border-slate-100 p-4 flex items-center justify-between sticky top-0 z-30">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-rose-600 rounded-lg flex items-center justify-center text-white font-black text-sm shadow-lg shadow-rose-200">V</div>
-              <span className="font-black text-slate-900 tracking-tighter">VORA</span>
-            </div>
-            <button 
-              onClick={() => setIsMenuOpen(true)}
-              className="p-2 bg-rose-50 text-rose-600 rounded-xl"
-            >
-              <Menu size={20} />
-            </button>
-          </div>
-        )}
-
-        <div className={`flex-1 overflow-y-auto ${isSidebarVisible ? 'p-4 md:p-8 lg:p-12' : ''}`}>
-          {children}
+          <h1 className="text-4xl md:text-5xl font-black text-slate-950 tracking-tight">
+            Bienvenido a <span className="text-rose-500">VORA</span>
+          </h1>
+          <p className="text-slate-500 font-medium mt-1">Gestionando tu negocio con precisión quirúrgica.</p>
         </div>
-      </main>
+        
+        <div className="group bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm hover:border-rose-200 transition-all cursor-pointer">
+           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Booking Link</p>
+           <div className="flex items-center gap-3">
+             <span className="text-sm font-bold text-slate-900">vora.ai/{data.id.slice(0,8)}</span>
+             <Zap size={14} className="text-rose-500 fill-rose-500" />
+           </div>
+        </div>
+      </header>
+
+      {/* BENTO GRID: RE-IMAGINADO */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        
+        {/* Card 1: Ventas Fiscales (The "Money" Card) */}
+        <div className="md:col-span-2 bg-slate-950 p-10 rounded-[40px] text-white shadow-2xl flex flex-col justify-between relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Activity size={120} strokeWidth={1} />
+          </div>
+          <div className="relative z-10">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400 mb-6">Revenue Año Fiscal ({data.currency_symbol})</p>
+            <h3 className="text-7xl font-black tracking-tighter italic">
+              ${Number(data.fiscal_year_sales || 0).toLocaleString()}
+            </h3>
+          </div>
+          <div className="relative z-10 flex justify-between items-center pt-8 border-t border-white/10 mt-10">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Facturas FEL Generadas</span>
+            <span className="text-3xl font-black text-rose-500 tracking-tighter">{data.balance_invoices || '0'}</span>
+          </div>
+        </div>
+
+        {/* Card 2: Equipo (Modern White) */}
+        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          <div>
+            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 text-rose-500 border border-slate-100">
+              <Users size={24} strokeWidth={2.5} />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tu Staff</p>
+            <h3 className="text-5xl font-black text-slate-950 tracking-tighter">{specialistsCount}</h3>
+          </div>
+          <div className="mt-4 inline-flex items-center px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-tighter">
+            Plan {data.subscription_tier}
+          </div>
+        </div>
+
+        {/* Card 3: IA Credits (Deep Rose) */}
+        <div className="bg-rose-500 p-8 rounded-[40px] text-white flex flex-col justify-between shadow-xl shadow-rose-100 group">
+          <div>
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-6 text-white backdrop-blur-md">
+              <ImageIcon size={24} strokeWidth={2.5} />
+            </div>
+            <p className="text-[10px] font-black text-rose-100 uppercase tracking-widest mb-1">IA Creative Credits</p>
+            <h3 className="text-5xl font-black tracking-tighter">{data.design_credits || '0'}</h3>
+          </div>
+          <p className="text-[9px] font-black uppercase text-white/70 tracking-widest">
+            Images Balance: {data.ai_images_balance || '0'}
+          </p>
+        </div>
+
+        {/* SECCIÓN INFERIOR: DOBLE PANEL */}
+        <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 lg:grid-cols-2 gap-8 mt-4">
+          
+          {/* Agenda de Hoy */}
+          <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Agenda Operativa</h3>
+              <Calendar size={18} className="text-slate-300" />
+            </div>
+            <div className="flex flex-col items-center py-14 border border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">No hay citas para hoy</p>
+            </div>
+          </div>
+
+          {/* Logs: El "Audit Trail" del Ingeniero */}
+          <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">IA Audit Trail</h3>
+              <div className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black text-slate-500 uppercase">Real-time</div>
+            </div>
+            
+            <div className="space-y-3">
+              {logs.length === 0 ? (
+                <p className="text-center py-12 text-slate-300 text-[10px] font-black uppercase tracking-widest italic">Monitoring activity...</p>
+              ) : (
+                logs.map((log: any) => (
+                  <div key={log.id} className="group flex gap-4 items-center p-4 hover:bg-slate-50 rounded-2xl transition-all border border-transparent hover:border-slate-100">
+                    <div className={`p-2 rounded-xl ${log.level === 'ERROR' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>
+                      {log.level === 'ERROR' ? <AlertCircle size={16} strokeWidth={3} /> : <CheckCircle2 size={16} strokeWidth={3} />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-slate-800 leading-none mb-1">{log.message}</p>
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{new Date(log.created_at).toLocaleTimeString()}</p>
+                    </div>
+                    <span className="hidden md:block text-[8px] font-black bg-slate-100 px-2 py-1 rounded text-slate-400 uppercase tracking-widest">{log.module}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+        </div>
+
+      </div>
+
+      <footer className="pt-10 flex flex-col items-center gap-2">
+        <div className="h-px w-20 bg-slate-200 mb-4"></div>
+        <p className="text-slate-300 text-[9px] font-black uppercase tracking-[0.5em]">Artemix S.A. • Intelligence Suite • 2026</p>
+      </footer>
     </div>
   )
 }
