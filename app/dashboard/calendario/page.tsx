@@ -240,22 +240,36 @@ export default function CalendarPage() {
     <div className="max-w-5xl mx-auto space-y-8 pb-10">
       <header className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6">
         <div>
-          <h1 className="text-4xl font-black text-slate-950 tracking-tight">Agenda <span className="text-emerald-600 italic">Operativa</span></h1>
+          <h1 className="text-4xl font-black text-slate-950 tracking-tight">
+            Agenda <span className="text-emerald-600 italic">Operativa</span>
+          </h1>
           <p className="text-slate-400 font-bold text-[9px] uppercase tracking-[0.3em] mt-2 flex items-center gap-2">
-            <RefreshCw size={12} className="animate-spin-slow text-emerald-500" /> Sincronización en tiempo real
+            {/* Punto de status con un aura lila sutil */}
+            <span className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse shadow-[0_0_8px_rgba(232,121,249,0.8)]"></span>
+            Sincronización en tiempo real
           </p>
         </div>
         
-        {/* Selector de Fecha */}
+        {/* Selector de Fecha con hovers en lila suave */}
         <div className="flex items-center bg-white border border-slate-100 p-2 rounded-[24px] shadow-sm">
-          <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400">
+          <button 
+            onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() - 1)))} 
+            className="p-2 hover:bg-fuchsia-50 hover:text-fuchsia-600 rounded-xl text-slate-400 transition-all"
+          >
             <ChevronLeft size={20} />
           </button>
           <div className="px-6 text-center min-w-[150px]">
-            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">{selectedDate.toLocaleDateString('es-GT', { weekday: 'long' })}</p>
-            <p className="text-sm font-bold text-slate-900">{selectedDate.toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric' })}</p>
+            <p className="text-[10px] font-black text-emerald-600 uppercase tracking-widest mb-0.5">
+              {selectedDate.toLocaleDateString('es-GT', { weekday: 'long' })}
+            </p>
+            <p className="text-sm font-bold text-slate-900 italic">
+              {selectedDate.toLocaleDateString('es-GT', { day: 'numeric', month: 'short', year: 'numeric' })}
+            </p>
           </div>
-          <button onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))} className="p-2 hover:bg-slate-50 rounded-xl text-slate-400">
+          <button 
+            onClick={() => setSelectedDate(new Date(selectedDate.setDate(selectedDate.getDate() + 1)))} 
+            className="p-2 hover:bg-fuchsia-50 hover:text-fuchsia-600 rounded-xl text-slate-400 transition-all"
+          >
             <ChevronRight size={20} />
           </button>
         </div>
@@ -264,24 +278,33 @@ export default function CalendarPage() {
       <section className="space-y-4">
         {appointments.length === 0 ? (
           <div className="bg-white border-2 border-dashed border-slate-100 rounded-[48px] py-24 flex flex-col items-center justify-center text-slate-300">
-             <Clock size={50} strokeWidth={1.5} className="mb-4 opacity-30" />
+             <Clock size={50} strokeWidth={1.5} className="mb-4 opacity-30 text-fuchsia-200" />
              <p className="font-bold text-xs uppercase tracking-[0.2em]">No hay citas para este día</p>
           </div>
         ) : (
           appointments.map((apt) => (
             <div key={apt.id} className="bg-white p-7 rounded-[40px] border border-slate-50 shadow-sm flex flex-col md:flex-row md:items-center gap-8 hover:border-emerald-100 hover:shadow-md transition-all group relative overflow-hidden">
-              <div className="absolute top-0 left-0 w-2 h-full bg-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity" />
+              
+              {/* DETALLE SIGILOSO: Borde lateral con gradiente Emerald a Fuchsia */}
+              <div className="absolute top-0 left-0 w-2 h-full bg-gradient-to-b from-emerald-600 to-fuchsia-400 opacity-0 group-hover:opacity-100 transition-opacity" />
               
               <div className="flex items-center md:flex-col md:items-start gap-4 md:gap-1 min-w-[110px] border-b md:border-b-0 md:border-r border-slate-50 pb-4 md:pb-0">
-                <p className="text-3xl font-black text-slate-950 tracking-tighter">
+                <p className="text-3xl font-black text-slate-950 tracking-tighter italic">
                   {new Date(apt.start_time).toLocaleTimeString('es-GT', { hour: '2-digit', minute: '2-digit', hour12: false })}
                 </p>
-                <div className="px-2 py-0.5 bg-emerald-50 rounded text-[9px] font-black text-emerald-600 uppercase">Confirmada</div>
+                {/* Badge con tono lila muy tenue */}
+                <div className="px-2 py-0.5 bg-fuchsia-50 text-fuchsia-600 rounded text-[8px] font-black uppercase tracking-widest">
+                  Confirmada ✦
+                </div>
               </div>
 
               <div className="flex-1 space-y-2">
                 <div className="flex items-center gap-3">
-                  <h3 className="text-xl font-black text-slate-900 tracking-tight">{apt.patient?.name}</h3>
+                  <h3 className="text-xl font-black text-slate-900 tracking-tight">
+                    {apt.patient?.name}
+                    {/* Destello sutil de diseño */}
+                    <span className="ml-2 text-fuchsia-200 group-hover:text-fuchsia-400 transition-colors italic font-serif">✦</span>
+                  </h3>
                 </div>
                 <div className="flex flex-wrap gap-5">
                   <div className="flex items-center gap-2 text-slate-400 font-bold text-xs">
@@ -293,19 +316,18 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              {/* Acciones Rápidas de la Cita */}
+              {/* Acciones Rápidas */}
               <div className="flex gap-3 mt-4 md:mt-0 border-t md:border-t-0 border-slate-50 pt-4 md:pt-0">
                 <button 
-                  onClick={() => alert(`Cita de ${apt.patient?.name} marcada como completada.`)}
+                  onClick={() => alert(`Cita de ${apt.patient?.name} completada.`)}
                   className="flex-1 md:flex-none bg-slate-950 text-white p-4 rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-slate-100 group-hover:scale-105"
                 >
                   <CheckCircle2 size={20} />
                 </button>
                 
-                {/* BOTÓN (+) INTEGRADO EN LA TARJETA */}
                 <button 
                   onClick={handleAddAppointment}
-                  className="flex-1 md:flex-none border border-slate-100 p-4 rounded-2xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                  className="flex-1 md:flex-none border border-slate-100 p-4 rounded-2xl text-slate-400 hover:text-fuchsia-600 hover:bg-fuchsia-50 hover:border-fuchsia-100 transition-all"
                 >
                   <Plus size={20} />
                 </button>
@@ -315,14 +337,15 @@ export default function CalendarPage() {
         )}
       </section>
 
-      {/* BOTÓN FLOTANTE MÓVIL INTEGRADO */}
+      {/* BOTÓN FLOTANTE MÓVIL con gradiente sigiloso */}
       <button 
         onClick={handleAddAppointment}
-        className="fixed bottom-10 right-10 w-16 h-16 bg-emerald-600 text-white rounded-[24px] shadow-2xl shadow-emerald-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-all lg:hidden z-50"
+        className="fixed bottom-10 right-10 w-16 h-16 bg-gradient-to-tr from-emerald-600 to-emerald-500 text-white rounded-[24px] shadow-2xl shadow-emerald-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-all lg:hidden z-50 overflow-hidden"
       >
+        {/* Un pequeño brillo lila interno */}
+        <div className="absolute -top-4 -right-4 w-10 h-10 bg-fuchsia-400/20 blur-xl"></div>
         <Plus size={32} strokeWidth={3} />
       </button>
     </div>
   )
-
 }
