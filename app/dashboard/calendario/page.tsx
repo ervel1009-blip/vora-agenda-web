@@ -103,12 +103,17 @@ export default function CalendarPage() {
     }
   }
 
-  // --- LÓGICA DE CARGA DE CITAS (OPERATIVO) ---
+// --- LÓGICA DE CARGA DE CITAS (OPERATIVO) ---
   const fetchAppointments = async (orgId: string) => {
-    const startOfDay = new Date(selectedDate.setHours(0,0,0,0)).toISOString()
-    const endOfDay = new Date(selectedDate.setHours(23,59,59,999)).toISOString()
+    // Ajuste para capturar todo el día independientemente de la zona horaria
+    const start = new Date(selectedDate);
+    start.setHours(0, 0, 0, 0);
+    const end = new Date(selectedDate);
+    end.setHours(23, 59, 59, 999);
 
-    const { data } = await supabase
+    console.log("🔍 Buscando citas entre:", start.toISOString(), "y", end.toISOString());
+
+    const { data, error } = await supabase
       .from('appointments_v_nexus')
       .select(`
         *,
@@ -116,12 +121,23 @@ export default function CalendarPage() {
         specialist:specialists(name)
       `)
       .eq('organization_id', orgId)
-      .gte('start_time', startOfDay)
-      .lte('start_time', endOfDay)
-      .order('start_time', { ascending: true })
+      .gte('start_time', start.toISOString())
+      .lte('start_time', end.toISOString())
+      .order('start_time', { ascending: true });
 
-    setAppointments(data || [])
-  }
+    if (error) {
+      console.error("❌ Error cargando citas:", error.message);
+    } else {
+      console.log("✅ Citas encontradas:", data?.length);
+      setAppointments(data || []);
+    }
+  };
+
+  // Función para el botón (+)
+  const handleAddAppointment = () => {
+    alert("🚀 Fase 3: El módulo para agendar citas manualmente desde el Dashboard estará disponible pronto. Por ahora, VORA agenda automáticamente vía WhatsApp.");
+  };
+
 
   const handleSaveCalendar = async () => {
     if (!selectedId) return
@@ -217,7 +233,7 @@ export default function CalendarPage() {
     )
   }
 
-  // ==========================================
+// ==========================================
   // VISTA 2: MODO OPERATIVO (AGENDA DASHBOARD)
   // ==========================================
   return (
@@ -277,9 +293,21 @@ export default function CalendarPage() {
                 </div>
               </div>
 
-              <div className="flex gap-3 mt-4 md:mt-0">
-                <button className="flex-1 md:flex-none bg-slate-950 text-white p-4 rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-slate-100 group-hover:scale-105">
+              {/* Acciones Rápidas de la Cita */}
+              <div className="flex gap-3 mt-4 md:mt-0 border-t md:border-t-0 border-slate-50 pt-4 md:pt-0">
+                <button 
+                  onClick={() => alert(`Cita de ${apt.patient?.name} marcada como completada.`)}
+                  className="flex-1 md:flex-none bg-slate-950 text-white p-4 rounded-2xl hover:bg-emerald-600 transition-all shadow-lg shadow-slate-100 group-hover:scale-105"
+                >
                   <CheckCircle2 size={20} />
+                </button>
+                
+                {/* BOTÓN (+) INTEGRADO EN LA TARJETA */}
+                <button 
+                  onClick={handleAddAppointment}
+                  className="flex-1 md:flex-none border border-slate-100 p-4 rounded-2xl text-slate-400 hover:text-emerald-600 hover:bg-emerald-50 transition-all"
+                >
+                  <Plus size={20} />
                 </button>
               </div>
             </div>
@@ -287,9 +315,14 @@ export default function CalendarPage() {
         )}
       </section>
 
-      <button className="fixed bottom-10 right-10 w-16 h-16 bg-emerald-600 text-white rounded-[24px] shadow-2xl shadow-emerald-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-all lg:hidden z-50">
+      {/* BOTÓN FLOTANTE MÓVIL INTEGRADO */}
+      <button 
+        onClick={handleAddAppointment}
+        className="fixed bottom-10 right-10 w-16 h-16 bg-emerald-600 text-white rounded-[24px] shadow-2xl shadow-emerald-200 flex items-center justify-center hover:scale-110 active:scale-95 transition-all lg:hidden z-50"
+      >
         <Plus size={32} strokeWidth={3} />
       </button>
     </div>
   )
+
 }
