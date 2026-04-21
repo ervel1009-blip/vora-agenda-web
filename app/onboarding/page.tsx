@@ -95,6 +95,7 @@ export default function OnboardingPage() {
             owner_email: session.user.email,
             business_type: nicheId,
             subscription_tier: 'starter', 
+            subscription_status: 'trialing', 
             tax_id: 'CF', 
             whatsapp_phone_id: '931581660032728', 
             allowed_modules: ['vora-clinica'], 
