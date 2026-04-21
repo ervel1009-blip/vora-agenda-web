@@ -1,92 +1,170 @@
 'use client'
 
-import Link from 'next/link'
-import { usePathname } from 'next/navigation'
+import { useEffect, useState } from 'react'
+import { createClient } from '@/lib/supabase/client'
 import { 
-  LayoutDashboard, Calendar, Scissors, CreditCard, 
-  History, TrendingUp, LifeBuoy, LogOut, Settings 
+  Activity, 
+  AlertCircle, 
+  CheckCircle2, 
+  ChevronRight, 
+  Users, 
+  Image as ImageIcon,
+  Calendar,
+  Zap
 } from 'lucide-react'
 
-const MENU_ITEMS = [
-  {
-    group: 'Operación',
-    items: [
-      { name: 'Inicio', href: '/dashboard', icon: LayoutDashboard },
-      { name: 'Agenda', href: '/dashboard/calendario', icon: Calendar },
-      { name: 'Servicios', href: '/dashboard/servicios', icon: Scissors },
-    ]
-  },
-  {
-    group: 'Negocio',
-    items: [
-      { name: 'Suscripción', href: '/dashboard/suscripcion', icon: TrendingUp },
-      { name: 'Pagos', href: '/dashboard/suscripcion/tarjeta', icon: CreditCard },
-      { name: 'Facturación', href: '/dashboard/suscripcion/historial', icon: History },
-    ]
-  },
-  {
-    group: 'Asistencia',
-    items: [
-      { name: 'Soporte IA', href: '/dashboard/soporte', icon: LifeBuoy },
-      { name: 'Configuración', href: '/dashboard/configuracion', icon: Settings },
-    ]
-  }
-]
+export default function DashboardHomePage() {
+  const supabase = createClient()
+  const [data, setData] = useState<any>(null)
+  const [specialistsCount, setSpecialistsCount] = useState(0)
+  const [logs, setLogs] = useState<any[]>([])
+  const [isLoading, setIsLoading] = useState(true)
 
-export default function Sidebar() {
-  const pathname = usePathname()
+  useEffect(() => {
+    const fetchDashboardData = async () => {
+      const { data: { user } } = await supabase.auth.getUser()
+      const { data: org } = await supabase.from('organizations').select('*').eq('owner_id', user?.id).single()
+      
+      if (org) {
+        setData(org)
+        const { count } = await supabase.from('specialists').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
+        setSpecialistsCount(count || 0)
+        const { data: systemLogs } = await supabase.from('system_logs').select('*').eq('org_id', org.id).order('created_at', { ascending: false }).limit(4)
+        setLogs(systemLogs || [])
+      }
+      setIsLoading(false)
+    }
+    fetchDashboardData()
+  }, [supabase])
+
+  if (isLoading || !data) return (
+    <div className="min-h-[60vh] flex items-center justify-center">
+      <span className="animate-spin h-8 w-8 border-4 border-rose-500 border-t-transparent rounded-full"></span>
+    </div>
+  )
 
   return (
-    <aside className="w-full lg:w-72 bg-white border-r border-slate-100 flex flex-col h-full">
-      {/* Logo Area: Identidad VORA */}
-      <div className="p-8">
-        <div className="flex items-center gap-3">
-          {/* El cuadro de la V ahora es Indigo */}
-          <div className="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-100">
-            <span className="text-white font-black text-xl">V</span>
+    <div className="space-y-10 max-w-7xl mx-auto text-slate-900 pb-20">
+      
+      {/* HEADER: MINIMALISTA & ELEGANTE */}
+      <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6 bg-transparent px-2">
+        <div>
+          <div className="flex items-center gap-2 mb-2">
+            <div className="h-2 w-2 bg-rose-500 rounded-full animate-ping"></div>
+            <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">System Live</span>
           </div>
-          <div>
-            <h2 className="text-xl font-black text-slate-950 tracking-tighter">VORA</h2>
-            <p className="text-[10px] font-black text-indigo-600 uppercase tracking-widest">Artemix S.A.</p>
+          <h1 className="text-4xl md:text-5xl font-black text-slate-950 tracking-tight">
+            Bienvenido a <span className="text-rose-500">VORA</span>
+          </h1>
+          <p className="text-slate-500 font-medium mt-1">Gestionando tu negocio con precisión quirúrgica.</p>
+        </div>
+        
+        <div className="group bg-white border border-slate-200 px-5 py-3 rounded-2xl shadow-sm hover:border-rose-200 transition-all cursor-pointer">
+           <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-1">Booking Link</p>
+           <div className="flex items-center gap-3">
+             <span className="text-sm font-bold text-slate-900">vora.ai/{data.id.slice(0,8)}</span>
+             <Zap size={14} className="text-rose-500 fill-rose-500" />
+           </div>
+        </div>
+      </header>
+
+      {/* BENTO GRID: RE-IMAGINADO */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+        
+        {/* Card 1: Ventas Fiscales (The "Money" Card) */}
+        <div className="md:col-span-2 bg-slate-950 p-10 rounded-[40px] text-white shadow-2xl flex flex-col justify-between relative overflow-hidden group">
+          <div className="absolute top-0 right-0 p-8 opacity-10 group-hover:opacity-20 transition-opacity">
+            <Activity size={120} strokeWidth={1} />
+          </div>
+          <div className="relative z-10">
+            <p className="text-[10px] font-black uppercase tracking-[0.2em] text-rose-400 mb-6">Revenue Año Fiscal ({data.currency_symbol})</p>
+            <h3 className="text-7xl font-black tracking-tighter italic">
+              ${Number(data.fiscal_year_sales || 0).toLocaleString()}
+            </h3>
+          </div>
+          <div className="relative z-10 flex justify-between items-center pt-8 border-t border-white/10 mt-10">
+            <span className="text-[10px] font-bold uppercase tracking-widest text-slate-400">Facturas FEL Generadas</span>
+            <span className="text-3xl font-black text-rose-500 tracking-tighter">{data.balance_invoices || '0'}</span>
           </div>
         </div>
-      </div>
 
-      <nav className="flex-1 px-4 py-4 overflow-y-auto">
-        {MENU_ITEMS.map((group, idx) => (
-          <div key={idx} className="mb-8">
-            <h3 className="px-4 text-[9px] font-black text-slate-400 uppercase tracking-[0.3em] mb-4">
-              {group.group}
-            </h3>
-            <div className="space-y-1">
-              {group.items.map((item) => {
-                const isActive = pathname === item.href
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    className={`flex items-center gap-3 px-4 py-3 rounded-2xl font-bold text-sm transition-all group ${
-                      isActive 
-                        ? 'bg-indigo-50 text-indigo-600 shadow-sm' 
-                        : 'text-slate-500 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
-                  >
-                    <item.icon className={`w-5 h-5 ${isActive ? 'text-indigo-600' : 'text-slate-400 group-hover:text-slate-600'}`} />
-                    {item.name}
-                  </Link>
-                )
-              })}
+        {/* Card 2: Equipo (Modern White) */}
+        <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          <div>
+            <div className="w-12 h-12 bg-slate-50 rounded-2xl flex items-center justify-center mb-6 text-rose-500 border border-slate-100">
+              <Users size={24} strokeWidth={2.5} />
+            </div>
+            <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Tu Staff</p>
+            <h3 className="text-5xl font-black text-slate-950 tracking-tighter">{specialistsCount}</h3>
+          </div>
+          <div className="mt-4 inline-flex items-center px-3 py-1 bg-rose-50 text-rose-600 rounded-full text-[9px] font-black uppercase tracking-tighter">
+            Plan {data.subscription_tier}
+          </div>
+        </div>
+
+        {/* Card 3: IA Credits (Deep Rose) */}
+        <div className="bg-rose-500 p-8 rounded-[40px] text-white flex flex-col justify-between shadow-xl shadow-rose-100 group">
+          <div>
+            <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-6 text-white backdrop-blur-md">
+              <ImageIcon size={24} strokeWidth={2.5} />
+            </div>
+            <p className="text-[10px] font-black text-rose-100 uppercase tracking-widest mb-1">IA Creative Credits</p>
+            <h3 className="text-5xl font-black tracking-tighter">{data.design_credits || '0'}</h3>
+          </div>
+          <p className="text-[9px] font-black uppercase text-white/70 tracking-widest">
+            Images Balance: {data.ai_images_balance || '0'}
+          </p>
+        </div>
+
+        {/* SECCIÓN INFERIOR: DOBLE PANEL */}
+        <div className="md:col-span-2 lg:col-span-4 grid grid-cols-1 lg:grid-cols-2 gap-8 mt-4">
+          
+          {/* Agenda de Hoy */}
+          <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">Agenda Operativa</h3>
+              <Calendar size={18} className="text-slate-300" />
+            </div>
+            <div className="flex flex-col items-center py-14 border border-dashed border-slate-200 rounded-[32px] bg-slate-50/50">
+              <p className="text-slate-400 font-bold text-xs uppercase tracking-widest">No hay citas para hoy</p>
             </div>
           </div>
-        ))}
-      </nav>
 
-      <div className="p-4 border-t border-slate-50">
-        <button className="flex items-center gap-3 w-full px-4 py-4 rounded-2xl text-slate-400 font-black text-[10px] uppercase tracking-widest hover:bg-slate-50 hover:text-indigo-600 transition-all">
-          <LogOut className="w-5 h-5" />
-          Cerrar Sesión
-        </button>
+          {/* Logs: El "Audit Trail" del Ingeniero */}
+          <div className="bg-white p-8 rounded-[40px] border border-slate-200 shadow-sm">
+            <div className="flex justify-between items-center mb-8">
+              <h3 className="text-xs font-black text-slate-400 uppercase tracking-[0.2em]">IA Audit Trail</h3>
+              <div className="px-3 py-1 bg-slate-100 rounded-full text-[9px] font-black text-slate-500 uppercase">Real-time</div>
+            </div>
+            
+            <div className="space-y-3">
+              {logs.length === 0 ? (
+                <p className="text-center py-12 text-slate-300 text-[10px] font-black uppercase tracking-widest italic">Monitoring activity...</p>
+              ) : (
+                logs.map((log: any) => (
+                  <div key={log.id} className="group flex gap-4 items-center p-4 hover:bg-slate-50 rounded-2xl transition-all border border-transparent hover:border-slate-100">
+                    <div className={`p-2 rounded-xl ${log.level === 'ERROR' ? 'bg-rose-50 text-rose-500' : 'bg-slate-50 text-slate-400'}`}>
+                      {log.level === 'ERROR' ? <AlertCircle size={16} strokeWidth={3} /> : <CheckCircle2 size={16} strokeWidth={3} />}
+                    </div>
+                    <div className="flex-1">
+                      <p className="text-xs font-bold text-slate-800 leading-none mb-1">{log.message}</p>
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{new Date(log.created_at).toLocaleTimeString()}</p>
+                    </div>
+                    <span className="hidden md:block text-[8px] font-black bg-slate-100 px-2 py-1 rounded text-slate-400 uppercase tracking-widest">{log.module}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          </div>
+
+        </div>
+
       </div>
-    </aside>
+
+      <footer className="pt-10 flex flex-col items-center gap-2">
+        <div className="h-px w-20 bg-slate-200 mb-4"></div>
+        <p className="text-slate-300 text-[9px] font-black uppercase tracking-[0.5em]">Artemix S.A. • Intelligence Suite • 2026</p>
+      </footer>
+    </div>
   )
 }
