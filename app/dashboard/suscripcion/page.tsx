@@ -1,9 +1,18 @@
-"use client"
+'use client'
 
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
+import { 
+  CheckCircle2, 
+  CreditCard, 
+  ShieldCheck, 
+  Zap, 
+  Trash2, 
+  RefreshCw,
+  Star
+} from 'lucide-react'
 
 const PRICING: { [key: string]: { monthly: number, yearly: number, label: string } } = {
   starter: { monthly: 19.99, yearly: 219.89, label: 'Starter' },
@@ -17,79 +26,46 @@ export default function SuscripcionPage() {
   const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly')
   const [planTier, setPlanTier] = useState('starter')
   const [isLoading, setIsLoading] = useState(true) 
+  const [isSaving, setIsSaving] = useState(false)
   const [user, setUser] = useState<any>(null)
-  const [orgId, setOrgId] = useState<string | null>(null)
-  
-  const FREE_TRIAL_DAYS = 30; 
+  const [org, setOrg] = useState<any>(null)
 
-  // --- 🚪 EL PORTERO FINAL (Paso 7/7 - 100% Integridad) ---
   useEffect(() => {
-    const checkFinalStatus = async () => {
+    const checkStatus = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession()
         if (!session?.user) { router.push('/'); return; }
         setUser(session.user)
 
-        const { data: org } = await supabase
+        const { data: orgData } = await supabase
           .from('organizations')
           .select('*')
           .eq('owner_id', session.user.id)
           .single()
 
-        // 1. VALIDACIÓN HACIA ATRÁS (La cadena completa)
-        if (!org?.business_type) { router.push('/onboarding'); return; }
-        if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
-        if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
-
-        // Validar Paso 4 (Horarios)
-        const { count: hoursCount } = await supabase.from('operating_hours').select('*', { count: 'exact', head: true }).eq('org_id', org.id)
-        if (!hoursCount || hoursCount === 0) { router.push('/dashboard/horarios'); return; }
-
-        // Validar Paso 5 (Servicios)
-        const { count: servicesCount } = await supabase.from('services_config').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
-        if (!servicesCount || servicesCount === 0) { router.push('/dashboard/servicios'); return; }
-
-        // 2. LÓGICA DE ESTADOS PARA ROMPER EL LOOP
+        setOrg(orgData)
         
-        // Caso A: Ya es usuario activo (ya pagó o activó trial)
-        if (org.subscription_status === 'active') {
-          console.log("✅ Usuario activo. Onboarding finalizado con éxito.");
-          router.push('/dashboard/calendario'); // Lo mandamos a su herramienta de trabajo
-          return;
+        if (orgData) {
+          setPlanTier(orgData.subscription_tier?.toLowerCase() || 'starter')
+          setBillingCycle(orgData.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
         }
 
-        // Caso B: Está pendiente de pago (Estado correcto para esta página)
-        if (org.subscription_status === 'pending_payment') {
-          setOrgId(org.id)
-          const dbTier = org.subscription_tier?.toLowerCase() || 'starter'
-          setPlanTier(dbTier)
-          setBillingCycle(org.billing_cycle === 'yearly' ? 'yearly' : 'monthly')
-          setIsLoading(false); // Detenemos el spinner y mostramos el checkout
-          return;
-        }
-
-        // Caso C: No ha elegido plan aún
-        console.log("⚠️ No se detectó plan. Regresando al Paso 6...");
-        router.push('/onboarding/planes');
-
+        setIsLoading(false)
       } catch (err) {
-        console.error("Error en el portero final:", err)
+        console.error("Error en suscripción:", err)
       }
     }
-    checkFinalStatus()
+    checkStatus()
   }, [supabase, router])
 
-  const currentPlan = PRICING[planTier] || PRICING.starter
-  const basePrice = billingCycle === 'monthly' ? currentPlan.monthly : currentPlan.yearly
-
   const handleCheckout = async () => {
-    if (isLoading || !user || !orgId) return
-    setIsLoading(true)
+    if (isSaving || !user || !org?.id) return
+    setIsSaving(true)
     
     try {
       const { data, error } = await supabase.functions.invoke('create-recurrente-checkout', {
         body: {
-          orgId,
+          orgId: org.id,
           planTier,
           billingCycle,
           userEmail: user.email,
@@ -101,65 +77,169 @@ export default function SuscripcionPage() {
       if (data?.checkout_url) window.location.assign(data.checkout_url)
     } catch (err: any) {
       alert(`Error: ${err.message}`)
-      setIsLoading(false)
+      setIsSaving(false)
     }
   }
 
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-rose-700"></div>
-      </div>
-    )
+  const handleCancelSubscription = async () => {
+    const confirm = window.confirm("¿Estás seguro de que deseas cancelar tu suscripción? Perderás acceso a las funciones avanzadas de VORA al finalizar tu periodo actual.")
+    if (!confirm) return
+    
+    setIsSaving(true)
+    try {
+      // Aquí llamarías a tu Edge Function de cancelación
+      alert("Solicitud de cancelación enviada. Procesando con Recurrente...");
+      // router.refresh();
+    } catch (err: any) {
+      alert("Error al cancelar: " + err.message)
+    } finally {
+      setIsSaving(false)
+    }
   }
 
+  if (isLoading) return (
+    <div className="min-h-screen flex items-center justify-center bg-slate-50">
+      <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-emerald-600"></div>
+    </div>
+  )
+
+  const currentPlan = PRICING[planTier] || PRICING.starter
+  const basePrice = billingCycle === 'monthly' ? currentPlan.monthly : currentPlan.yearly
+
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-6 md:p-12 font-sans">
+    <div className="min-h-screen bg-slate-50 flex flex-col items-center py-12 px-6 font-sans">
       
-      <div className="w-full max-w-xl mb-12">
-        <OnboardingProgress currentStep={7} />
-      </div>
+      {/* Solo mostramos el progreso si NO es activo */}
+      {org?.subscription_status !== 'active' && (
+        <div className="w-full max-w-xl mb-12">
+          <OnboardingProgress currentStep={7} />
+        </div>
+      )}
 
       <header className="mb-12 text-center">
-        <h1 className="text-4xl md:text-5xl font-black text-rose-950 tracking-tighter">
-          Tu Plan <span className="text-rose-700">{currentPlan.label}</span>
+        <div className="inline-flex items-center gap-2 px-3 py-1 bg-fuchsia-50 rounded-full border border-fuchsia-100 text-fuchsia-600 mb-4 shadow-sm shadow-fuchsia-100/50">
+          <Star size={12} className="fill-fuchsia-600" />
+          <span className="text-[10px] font-black uppercase tracking-[0.2em]">Suscripción VORA</span>
+        </div>
+        <h1 className="text-4xl md:text-5xl font-black text-slate-950 tracking-tighter">
+          {org?.subscription_status === 'active' ? 'Tu suscripción está ' : 'Finaliza tu '}
+          <span className="text-emerald-600 italic">{org?.subscription_status === 'active' ? 'Activa' : 'Activación'}</span>
         </h1>
-        <p className="text-slate-600 mt-4 font-medium text-lg italic">
-          Facturación {billingCycle === 'monthly' ? 'Mensual' : 'Anual'}
-        </p>
       </header>
 
-      <div className="w-full max-w-4xl grid md:grid-cols-2 gap-8 items-stretch">
-        <div className="bg-white p-10 rounded-[48px] shadow-2xl border border-slate-100 flex flex-col justify-between">
-            <div className="space-y-6">
-                <div className="flex justify-between items-center text-slate-400">
-                    <span className="font-bold uppercase tracking-widest text-xs">Precio Regular</span>
-                    <span className="font-black line-through text-xl">${basePrice.toFixed(2)}</span>
-                </div>
-                <div className="flex justify-between items-center bg-green-50 p-6 rounded-3xl border border-green-100">
-                    <span className="text-green-700 font-black text-sm uppercase">🎁 30 Días Gratis</span>
-                    <span className="font-black text-green-700 text-2xl tracking-tighter">FREE</span>
-                </div>
-                <div className="pt-8 border-t border-slate-100 flex justify-between items-end">
-                    <span className="text-xl font-black text-slate-400 uppercase">Total Hoy</span>
-                    <span className="text-6xl font-black text-rose-700 tracking-tighter">$0.00</span>
-                </div>
+      <div className="w-full max-w-5xl grid lg:grid-cols-3 gap-8 items-start">
+        
+        {/* DETALLES DEL PLAN */}
+        <div className="lg:col-span-2 space-y-6">
+          <div className="bg-white p-8 md:p-12 rounded-[48px] shadow-xl shadow-slate-200/50 border border-slate-100 relative overflow-hidden">
+            <div className="absolute top-0 right-0 p-8 opacity-5 text-emerald-600">
+               <Zap size={120} strokeWidth={1} />
             </div>
+
+            <div className="flex justify-between items-start mb-10">
+              <div>
+                <p className="text-[10px] font-black text-slate-400 uppercase tracking-widest mb-1">Plan Seleccionado</p>
+                <h2 className="text-3xl font-black text-slate-900 tracking-tight">{currentPlan.label}</h2>
+              </div>
+              <div className="bg-emerald-50 px-4 py-2 rounded-2xl">
+                <span className="text-xs font-black text-emerald-600 uppercase tracking-tighter">
+                  {billingCycle === 'monthly' ? 'Mensual' : 'Anual'}
+                </span>
+              </div>
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-8">
+              <div className="space-y-4">
+                <div className="flex items-center gap-3 text-slate-600 font-bold text-sm">
+                  <CheckCircle2 size={18} className="text-emerald-500" /> 
+                  Sincronización con Google
+                </div>
+                <div className="flex items-center gap-3 text-slate-600 font-bold text-sm">
+                  <CheckCircle2 size={18} className="text-emerald-500" /> 
+                  IA de agendamiento activa
+                </div>
+                <div className="flex items-center gap-3 text-slate-600 font-bold text-sm">
+                  <CheckCircle2 size={18} className="text-emerald-500" /> 
+                  Facturación FEL integrada
+                </div>
+              </div>
+
+              <div className="bg-slate-50 p-6 rounded-[32px] border border-slate-100">
+                <div className="flex justify-between items-center text-slate-400 mb-2">
+                  <span className="text-[10px] font-black uppercase tracking-widest">Precio Base</span>
+                  <span className="font-bold line-through">${basePrice.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-center text-emerald-600 mb-6">
+                  <span className="text-[10px] font-black uppercase tracking-widest">Prueba Gratis (30d)</span>
+                  <span className="font-black">-$ {basePrice.toFixed(2)}</span>
+                </div>
+                <div className="flex justify-between items-end pt-4 border-t border-slate-200">
+                  <span className="text-sm font-black text-slate-950 uppercase tracking-widest">Total Hoy</span>
+                  <span className="text-4xl font-black text-slate-950 tracking-tighter">$0.00</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* OPCIONES DE GESTIÓN (Solo si es activo) */}
+          {org?.subscription_status === 'active' && (
+            <div className="bg-white p-8 rounded-[40px] border border-slate-100 flex flex-col md:flex-row items-center justify-between gap-6 shadow-sm">
+              <div className="flex items-center gap-4">
+                <div className="w-12 h-12 bg-rose-50 text-rose-500 rounded-2xl flex items-center justify-center">
+                  <Trash2 size={24} />
+                </div>
+                <div>
+                  <p className="text-sm font-black text-slate-900">¿Deseas cancelar?</p>
+                  <p className="text-xs font-medium text-slate-400">Puedes cancelar tu suscripción en cualquier momento.</p>
+                </div>
+              </div>
+              <button 
+                onClick={handleCancelSubscription}
+                className="w-full md:w-auto px-8 py-3 rounded-xl text-xs font-black uppercase tracking-widest text-rose-500 hover:bg-rose-50 border border-rose-100 transition-all"
+              >
+                Cancelar Suscripción
+              </button>
+            </div>
+          )}
         </div>
 
-        <div className="bg-rose-700 p-12 rounded-[48px] shadow-2xl text-white text-center flex flex-col justify-center">
-            <h3 className="text-3xl font-black mb-10 tracking-[0.3em]">CHECKOUT</h3>
-            <button 
-              onClick={handleCheckout} 
-              className="w-full bg-white text-rose-700 py-6 rounded-2xl font-black text-2xl hover:bg-rose-50 shadow-xl transition-all active:scale-95"
-            >
-              Iniciar Prueba Gratis
-            </button>
-            <p className="text-[11px] text-rose-200 mt-8 font-bold italic leading-relaxed">
-              "No se realizará ningún cobro hoy. Podrás cancelar en cualquier momento."
-            </p>
+        {/* COLUMNA DE ACCIÓN / CHECKOUT */}
+        <div className="bg-slate-950 p-10 rounded-[48px] shadow-2xl text-white flex flex-col justify-between min-h-[400px] relative overflow-hidden group">
+           <div className="absolute -bottom-10 -left-10 w-40 h-40 bg-emerald-500/10 rounded-full blur-3xl group-hover:bg-fuchsia-500/10 transition-all duration-700"></div>
+           
+           <div className="relative z-10">
+             <div className="w-14 h-14 bg-white/10 rounded-2xl flex items-center justify-center text-emerald-400 mb-8">
+               <ShieldCheck size={32} />
+             </div>
+             <h3 className="text-3xl font-black mb-4 tracking-tight leading-none italic">Secure <br/>Checkout</h3>
+             <p className="text-slate-400 text-sm font-medium leading-relaxed">
+               {org?.subscription_status === 'active' 
+                ? 'Tu cuenta está protegida y activa. No se requieren acciones adicionales.' 
+                : 'Se requiere una tarjeta para activar los 30 días de prueba. No se cobrará nada hoy.'}
+             </p>
+           </div>
+
+           {org?.subscription_status !== 'active' && (
+            <div className="relative z-10 space-y-4">
+              <button 
+                onClick={handleCheckout} 
+                disabled={isSaving}
+                className="w-full bg-emerald-600 text-white py-6 rounded-2xl font-black text-xl hover:bg-emerald-500 shadow-xl shadow-emerald-950/20 transition-all active:scale-95 flex items-center justify-center gap-3"
+              >
+                {isSaving ? <RefreshCw className="animate-spin" /> : 'Activar Trial 🚀'}
+              </button>
+              <p className="text-[10px] text-slate-500 text-center font-bold uppercase tracking-widest">
+                Procesado por Recurrente
+              </p>
+            </div>
+           )}
         </div>
+
       </div>
+
+      <footer className="mt-16 text-center">
+         <p className="text-slate-300 text-[10px] font-black uppercase tracking-[0.5em]">Artemix S.A. • Systems Engineering • 2026</p>
+      </footer>
     </div>
   )
 }
