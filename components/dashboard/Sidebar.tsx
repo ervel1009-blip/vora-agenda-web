@@ -7,6 +7,11 @@ import {
   History, TrendingUp, LifeBuoy, LogOut, Settings 
 } from 'lucide-react'
 
+// Definimos que el Sidebar puede recibir una función "onNavigate"
+interface SidebarProps {
+  onNavigate?: () => void
+}
+
 const MENU_ITEMS = [
   {
     group: 'Operación',
@@ -21,7 +26,7 @@ const MENU_ITEMS = [
     items: [
       { name: 'Suscripción', href: '/dashboard/suscripcion', icon: TrendingUp },
       { name: 'Pagos', href: '/dashboard/suscripcion/tarjeta', icon: CreditCard },
-      { name: 'Facturación', href: '/dashboard/suscripcion/historial', icon: History },
+      { name: 'Facturas FEL', href: '/dashboard/suscripcion/historial', icon: History },
     ]
   },
   {
@@ -33,14 +38,13 @@ const MENU_ITEMS = [
   }
 ]
 
-export default function Sidebar() {
+export default function Sidebar({ onNavigate }: SidebarProps) {
   const pathname = usePathname()
 
   return (
-    <aside className="w-full lg:w-72 bg-white border-r border-slate-100 flex flex-col h-full">
+    <aside className="w-full flex flex-col h-full bg-white">
       <div className="p-8">
         <div className="flex items-center gap-3">
-          {/* La "V" ahora es Emerald-600: Elegancia y Salud */}
           <div className="w-11 h-11 bg-emerald-600 rounded-2xl flex items-center justify-center shadow-lg shadow-emerald-100">
             <span className="text-white font-black text-2xl">V</span>
           </div>
@@ -64,6 +68,7 @@ export default function Sidebar() {
                   <Link
                     key={item.href}
                     href={item.href}
+                    onClick={onNavigate} // <--- AQUÍ SE CIERRA EL MENÚ AL HACER CLIC
                     className={`flex items-center gap-3 px-4 py-3.5 rounded-2xl font-bold text-sm transition-all group ${
                       isActive 
                         ? 'bg-emerald-50 text-emerald-700 shadow-sm' 
@@ -81,9 +86,9 @@ export default function Sidebar() {
       </nav>
 
       <div className="p-6 border-t border-slate-50">
-        <button className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-slate-400 font-bold text-[10px] uppercase tracking-widest hover:bg-emerald-50 hover:text-emerald-700 transition-all">
+        <button className="flex items-center gap-3 w-full px-4 py-3 rounded-2xl text-slate-400 font-bold text-xs uppercase tracking-widest hover:bg-emerald-50 hover:text-emerald-700 transition-all">
           <LogOut className="w-5 h-5" />
-          Cerrar Sesión
+          Salir
         </button>
       </div>
     </aside>
