@@ -184,7 +184,7 @@ export default function ServiciosPage() {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Catálogo de Servicios VORA</span>
         </div>
         
-        <h1 className="text-5xl font-black text-slate-950 tracking-tighter leading-tight">
+        <h1 className="text-4xl font-black text-slate-950 tracking-tighter leading-tight">
             {isManagementMode ? 'Mis ' : 'Configurar '} <span className="text-emerald-600 italic">Servicios</span>
         </h1>
         
