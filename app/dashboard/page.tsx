@@ -27,21 +27,37 @@ export default function DashboardHomePage() {
         const { count: sCount } = await supabase.from('specialists').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
         setSpecialistsCount(sCount || 0)
 
-        // 2. Métricas de Citas (Confirmadas)
-        const today = new Date().toISOString().split('T')[0]
-        const firstDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
+      
+        // 2. Métricas de Citas (Confirmadas en appointments_v_nexus)
+const now = new Date();
+const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
+const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
 
-        const { count: countToday } = await supabase.from('appointments_v_nexus')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', org.id)
-          .gte('start_time', today)
+const firstDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
 
-        const { count: countMonth } = await supabase.from('appointments_v_nexus')
-          .select('*', { count: 'exact', head: true })
-          .eq('org_id', org.id)
-          .gte('start_time', firstDayMonth)
+// Conteo de Hoy
+const { count: countToday, error: errorToday } = await supabase
+  .from('appointments_v_nexus')
+  .select('*', { count: 'exact', head: true })
+  .eq('organization_id', org.id) // <-- Cambiado de org_id a organization_id
+  .gte('start_time', todayStart)
+  .lte('start_time', todayEnd);
 
-        setStats({ today: countToday || 0, month: countMonth || 0 })
+// Conteo del Mes
+const { count: countMonth, error: errorMonth } = await supabase
+  .from('appointments_v_nexus')
+  .select('*', { count: 'exact', head: true })
+  .eq('organization_id', org.id) // <-- Cambiado de org_id a organization_id
+  .gte('start_time', firstDayMonth);
+
+if (errorToday || errorMonth) {
+  console.error("❌ Error en RLS o Query:", errorToday || errorMonth);
+}
+
+setStats({ today: countToday || 0, month: countMonth || 0 });
+
+
+
 
         // 3. Audit Logs
         const { data: systemLogs } = await supabase.from('system_logs').select('*').eq('org_id', org.id).order('created_at', { ascending: false }).limit(4)
