@@ -9,23 +9,34 @@ export default function LoginPage() {
   const supabase = createClient()
   const router = useRouter()
 
-  // --- 🚪 EL PORTERO (Lógica de validación optimizada) ---
-  useEffect(() => {
-    const checkUserStatus = async () => {
-      const { data: { session } } = await supabase.auth.getSession()
+// --- 🚪 EL PORTERO INTELIGENTE (Versión Final) ---
+useEffect(() => {
+  const checkUserStatus = async () => {
+    const { data: { session } } = await supabase.auth.getSession()
 
-      if (session) {
-        setIsLoading(true)
-        // 🚀 REDIRECCIÓN INTELIGENTE:
-        // En lugar de enviarlo a un lugar fijo, lo mandamos al flujo de onboarding.
-        // El layout.tsx se encargará de ver si ya es 'active' y mandarlo al calendario,
-        // o si le falta algún paso intermedio.
+    if (session) {
+      setIsLoading(true)
+      
+      // 🔍 Consultamos rápido el estatus real en la DB
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('subscription_status')
+        .eq('owner_id', session.user.id)
+        .single()
+
+      if (org?.subscription_status === 'active') {
+        // ✅ ES SOCIO: Directo al corazón de VORA
+        console.log("🚀 Usuario activo detectado. Saltando onboarding...")
+        router.push('/dashboard/calendario')
+      } else {
+        // 🚧 ES NUEVO O PENDIENTE: Al embudo de onboarding
         router.push('/onboarding')
       }
     }
+  }
 
-    checkUserStatus()
-  }, [supabase, router])
+  checkUserStatus()
+}, [supabase, router])
   // ------------------------------------------
 
   const handleGoogleLogin = async () => {
@@ -36,7 +47,7 @@ export default function LoginPage() {
         queryParams: { access_type: 'offline', prompt: 'consent' },
         scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events',
         // Redirigimos siempre a onboarding para que el sistema de reubicación actúe tras el login
-        redirectTo: `${window.location.origin}/onboarding`, 
+        redirectTo: `${window.location.origin}`,
       },
     })
     if (error) {
