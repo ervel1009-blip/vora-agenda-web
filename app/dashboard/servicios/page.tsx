@@ -185,9 +185,11 @@ export default function ServiciosPage() {
           <span className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Gestión de Catálogo</span>
         </div>
         
-        <h1 className="text-5xl font-black text-slate-950 tracking-tighter leading-tight">
-            {isManagementMode ? 'Mis ' : 'Configurar '} <span className="text-rose-600">Servicios</span>
-        </h1>
+         <h1 className="text-4xl font-black text-slate-950 tracking-tight">
+            Mis <span className="text-emerald-600 italic">Servicios</span>
+          </h1>
+
+
         <p className="text-slate-500 mt-4 font-medium text-lg max-w-xl">
           {isManagementMode ? 'Optimiza los tiempos y precios de tu oferta comercial.' : 'Define los servicios que VORA agendará automáticamente.'}
         </p>
