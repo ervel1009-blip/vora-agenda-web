@@ -278,7 +278,8 @@ export default function DashboardHomePage() {
   </div>
 </div>
 
-
+</div>
+</div>
 
       {/* FOOTER */}
       <footer className="text-center pt-10">
