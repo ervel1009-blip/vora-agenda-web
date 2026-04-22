@@ -31,12 +31,12 @@ export default function DashboardHomePage() {
         const today = new Date().toISOString().split('T')[0]
         const firstDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
 
-        const { count: countToday } = await supabase.from('bookings')
+        const { count: countToday } = await supabase.from('appointments_v_nexus')
           .select('*', { count: 'exact', head: true })
           .eq('org_id', org.id)
           .gte('start_time', today)
 
-        const { count: countMonth } = await supabase.from('bookings')
+        const { count: countMonth } = await supabase.from('appointments_v_nexus')
           .select('*', { count: 'exact', head: true })
           .eq('org_id', org.id)
           .gte('start_time', firstDayMonth)
