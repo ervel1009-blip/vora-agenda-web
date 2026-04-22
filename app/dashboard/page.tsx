@@ -32,8 +32,8 @@ export default function DashboardHomePage() {
 const now = new Date();
 const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
 const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
-
 const firstDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
+const [appointments, setAppointments] = useState<any[]>([])
 
 // Conteo de Hoy
 const { count: countToday, error: errorToday } = await supabase
@@ -50,13 +50,28 @@ const { count: countMonth, error: errorMonth } = await supabase
   .eq('organization_id', org.id) // <-- Cambiado de org_id a organization_id
   .gte('start_time', firstDayMonth);
 
+
+const { data: todayAppts, error: apptError } = await supabase
+  .from('appointments_v_nexus')
+  .select(`
+    id, 
+    start_time, 
+    reason, 
+    estimated_price,
+    specialists (name)
+  `)
+  .eq('organization_id', org.id)
+  .gte('start_time', todayStart)
+  .lte('start_time', todayEnd)
+  .order('start_time', { ascending: true });
+
+if (!apptError) setAppointments(todayAppts || []);
+
 if (errorToday || errorMonth) {
   console.error("❌ Error en RLS o Query:", errorToday || errorMonth);
 }
 
 setStats({ today: countToday || 0, month: countMonth || 0 });
-
-
 
 
         // 3. Audit Logs
@@ -157,22 +172,73 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
           </div>
         </div>
 
-        {/* AGENDA Y LOGS */}
+       {/* AGENDA Y LOGS */}
         <div className="md:col-span-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
-          {/* Agenda de Hoy */}
-          <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm">
+          
+          {/* Agenda de Hoy Dinámica */}
+          <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="flex justify-between items-center mb-10">
                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Agenda de Hoy</h3>
-               <Clock size={16} className="text-slate-300" />
+               {/* Badge de conteo rápido */}
+               <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter">
+                 {appointments.length} Citas
+               </span>
             </div>
-            {/* Aquí podrías mapear una lista corta de citas */}
-            <div className="py-16 border border-dashed border-slate-100 rounded-[32px] bg-slate-50/40 flex flex-col items-center">
-              <Calendar className="text-slate-200 mb-4" size={40} />
-              <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest">Sincronizado con Google Calendar</p>
+
+            <div className="space-y-6">
+              {appointments.length === 0 ? (
+                /* Estado vacío si no hay citas */
+                <div className="py-16 border border-dashed border-slate-100 rounded-[32px] bg-slate-50/40 flex flex-col items-center">
+                  <Calendar className="text-slate-200 mb-4" size={40} />
+                  <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest text-center">
+                    Sincronizado • Sin citas para hoy
+                  </p>
+                </div>
+              ) : (
+                /* Listado estilo Timeline */
+                appointments.map((appt) => (
+                  <div key={appt.id} className="relative pl-8 pb-6 border-l border-slate-100 last:pb-0">
+                    {/* El Punto del Timeline */}
+                    <div className="absolute -left-1.5 top-1 h-3 w-3 bg-emerald-500 rounded-full border-2 border-white shadow-sm"></div>
+                    
+                    <div className="flex justify-between items-start bg-slate-50/50 p-4 rounded-[24px] border border-transparent hover:border-emerald-100 transition-all group">
+                      <div>
+                        <div className="flex items-center gap-2 mb-1">
+                          <Clock size={12} className="text-emerald-600" />
+                          <span className="text-xs font-black text-slate-900">
+                            {new Date(appt.start_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-bold text-slate-800 tracking-tight leading-tight">
+                          {appt.reason || 'Consulta General'}
+                        </h4>
+                        <p className="text-[9px] font-medium text-slate-400 uppercase tracking-tighter mt-1">
+                          Con: <span className="font-bold text-slate-600">{appt.specialists?.name || 'Especialista'}</span>
+                        </p>
+                      </div>
+                      <div className="text-right">
+                        <p className="text-xs font-black text-emerald-600 italic">
+                          {data.currency_symbol}{appt.estimated_price || '0'}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                ))
+              )}
             </div>
+            
+            {/* Botón de acceso rápido a la sección completa */}
+            {appointments.length > 0 && (
+              <button 
+                onClick={() => router.push('/dashboard/calendario')}
+                className="w-full mt-6 py-3 text-[9px] font-black uppercase tracking-[0.2em] text-slate-400 hover:text-emerald-600 transition-colors border-t border-slate-50 pt-6"
+              >
+                Ver Agenda Completa →
+              </button>
+            )}
           </div>
 
-          {/* Audit Log */}
+          {/* Audit Log (Mantenido y Pulido) */}
           <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm">
             <div className="flex justify-between items-center mb-10">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">IA Audit Log</h3>
@@ -189,7 +255,9 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
                     </div>
                     <div className="flex-1">
                       <p className="text-xs font-bold text-slate-900 leading-none mb-1.5">{log.message}</p>
-                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">{new Date(log.created_at).toLocaleTimeString()}</p>
+                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">
+                        {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </p>
                     </div>
                   </div>
                 ))
@@ -197,11 +265,13 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
             </div>
           </div>
         </div>
-      </div>
 
+      {/* FOOTER CORPORATIVO */}
       <footer className="text-center pt-10">
         <div className="h-px w-20 bg-slate-100 mx-auto mb-6"></div>
-        <p className="text-slate-300 text-[9px] font-black uppercase tracking-[0.6em]">Artemix S.A. • Guatemala • 2026</p>
+        <p className="text-slate-300 text-[9px] font-black uppercase tracking-[0.6em]">
+          Artemix S.A. • Systems Engineering • 2026
+        </p>
       </footer>
     </div>
   )
