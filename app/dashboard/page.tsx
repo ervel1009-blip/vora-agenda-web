@@ -257,19 +257,28 @@ export default function DashboardHomePage() {
                     <div className={`p-2.5 rounded-2xl ${log.level === 'ERROR' ? 'bg-rose-50 text-rose-500' : 'bg-emerald-50 text-emerald-600'}`}>
                       {log.level === 'ERROR' ? <AlertCircle size={18} strokeWidth={3} /> : <CheckCircle2 size={18} strokeWidth={3} />}
                     </div>
-                    <div className="flex-1">
-                      <p className="text-xs font-bold text-slate-900 leading-none mb-1.5">{log.message}</p>
-                      <p className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">
-                        {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                  </div>
-                ))
-              )}
+                   {/* 👇 AQUÍ INTEGRAMOS TU NUEVO BLOQUE */}
+          <div className="flex-1">
+            <div className="flex flex-col">
+              <p className="text-xs font-bold text-slate-900 leading-none mb-1.5">{log.message}</p>
+              <div className="flex items-center gap-2">
+                {/* Badge del Módulo (AI, WHATSAPP, etc) */}
+                <span className="text-[8px] font-black bg-slate-100 px-1.5 py-0.5 rounded text-slate-500 uppercase tracking-tighter">
+                  {log.module || 'SYSTEM'}
+                </span>
+                <p className="text-[9px] text-slate-400 font-black uppercase tracking-tighter">
+                  {new Date(log.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                </p>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      ))
+    )}
+  </div>
+</div>
+
+
 
       {/* FOOTER */}
       <footer className="text-center pt-10">
