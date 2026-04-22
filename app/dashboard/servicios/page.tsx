@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { createClient } from '@/lib/supabase/client'
 import { useRouter } from 'next/navigation'
 import OnboardingProgress from '@/components/onboarding/OnboardingProgress'
+import { Edit3, Plus, Trash2, Zap, Save } from 'lucide-react'
 
 interface ServiceConfig {
   id: string
@@ -13,6 +14,7 @@ interface ServiceConfig {
   description: string | null
   is_active: boolean
   buffer_after_minutes: number
+  category: string
 }
 
 export default function ServiciosPage() {
@@ -23,6 +25,8 @@ export default function ServiciosPage() {
   const [isLoading, setIsLoading] = useState(true) 
   const [isLoadingAction, setIsLoadingAction] = useState(false)
   const [orgData, setOrgData] = useState<any>(null)
+  const [isManagementMode, setIsManagementMode] = useState(false) // 👈 Modo Gestión
+  const [editingServiceId, setEditingServiceId] = useState<string | null>(null) // 👈 Para editar
   
   const [showPricesOnChat, setShowPricesOnChat] = useState(true)
 
@@ -36,7 +40,7 @@ export default function ServiciosPage() {
     category: 'General'
   })
 
-  // --- 🚪 EL PORTERO LINEAL (Paso 5/7) ---
+  // --- 🚪 EL PORTERO HÍBRIDO ---
   useEffect(() => {
     const fetchAndCheck = async () => {
       const { data: { session } } = await supabase.auth.getSession()
@@ -48,75 +52,99 @@ export default function ServiciosPage() {
         .eq('owner_id', session.user.id)
         .single()
 
-      // 1. VALIDACIÓN HACIA ATRÁS (Cascada)
-      if (!org?.business_type) { router.push('/onboarding'); return; }
-      if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
-      if (!org?.public_phone || !org?.address) { router.push('/onboarding/perfil'); return; }
-
-      // Validar Paso 4: Horarios
-      const { count: hoursCount } = await supabase
-        .from('operating_hours')
-        .select('*', { count: 'exact', head: true })
-        .eq('org_id', org.id)
-
-      if (!hoursCount || hoursCount === 0) {
-        console.log("⚠️ Falta configurar horarios. Regresando al Paso 4...");
-        router.push('/dashboard/horarios')
-        return
-      }
-
       if (org) {
         setOrgData(org)
+        const active = org.subscription_status === 'active'
+        setIsManagementMode(active) // Si es activo, entramos en modo gestión
+
         if (org.chat_context?.show_prices !== undefined) {
           setShowPricesOnChat(org.chat_context.show_prices)
         }
+
+        // VALIDACIÓN HACIA ATRÁS (Solo si no es activo)
+        if (!active) {
+          if (!org?.business_type) { router.push('/onboarding'); return; }
+          if (!org?.google_calendar_id) { router.push('/dashboard/calendario'); return; }
+        }
         
-        // 2. VALIDACIÓN HACIA ADELANTE: ¿Ya tiene servicios?
+        // Cargar servicios existentes
         const { data: servicesData } = await supabase
           .from('services_config')
           .select('*')
           .eq('organization_id', org.id)
           .order('created_at', { ascending: false })
 
-        if (servicesData && servicesData.length > 0) {
-          // 🚀 SALTO LINEAL: Avanzar al Paso 6 (Planes)
-          console.log("✅ Servicios detectados. Avanzando al Paso 6...");
+        setServices(servicesData || [])
+
+        // REDIRECCIÓN HACIA ADELANTE (Solo en Onboarding)
+        if (!active && servicesData && servicesData.length > 0) {
           router.push('/onboarding/planes')
           return
         }
-        
-        setServices(servicesData || [])
       }
       setIsLoading(false)
     }
     fetchAndCheck()
   }, [supabase, router])
 
-  const handleAddService = async () => {
+  // --- LÓGICA DE GUARDADO (CREAR O EDITAR) ---
+  const handleSaveService = async () => {
     setIsLoadingAction(true)
     if (!orgData) return
 
     const totalMinutes = (form.duration_hours * 60) + form.duration_mins;
-
-    const { data, error } = await supabase
-      .from('services_config')
-      .insert([{
-        organization_id: orgData.id,
-        service_name: form.service_name,
-        duration_minutes: totalMinutes,
-        price: parseFloat(form.price) || 0,
-        description: form.description,
-        buffer_after_minutes: parseInt(form.buffer_after_minutes) || 0,
-        category: form.category
-      }])
-      .select()
-
-    if (!error && data) {
-      setServices([data[0], ...services])
-      setIsModalOpen(false)
-      setForm({ service_name: '', duration_hours: 1, duration_mins: 0, price: '', description: '', buffer_after_minutes: '', category: 'General' })
+    const servicePayload = {
+      organization_id: orgData.id,
+      service_name: form.service_name,
+      duration_minutes: totalMinutes,
+      price: parseFloat(form.price) || 0,
+      description: form.description,
+      buffer_after_minutes: parseInt(form.buffer_after_minutes) || 0,
+      category: form.category
     }
+
+    if (editingServiceId) {
+      // 📝 ACTUALIZAR
+      const { error } = await supabase
+        .from('services_config')
+        .update(servicePayload)
+        .eq('id', editingServiceId)
+      
+      if (!error) {
+        setServices(services.map(s => s.id === editingServiceId ? { ...s, ...servicePayload } : s))
+      }
+    } else {
+      // 🆕 CREAR
+      const { data, error } = await supabase
+        .from('services_config')
+        .insert([servicePayload])
+        .select()
+      
+      if (!error && data) setServices([data[0], ...services])
+    }
+
+    setIsModalOpen(false)
+    resetForm()
     setIsLoadingAction(false)
+  }
+
+  const resetForm = () => {
+    setForm({ service_name: '', duration_hours: 1, duration_mins: 0, price: '', description: '', buffer_after_minutes: '', category: 'General' })
+    setEditingServiceId(null)
+  }
+
+  const openEditModal = (service: ServiceConfig) => {
+    setEditingServiceId(service.id)
+    setForm({
+      service_name: service.service_name,
+      duration_hours: Math.floor(service.duration_minutes / 60),
+      duration_mins: service.duration_minutes % 60,
+      price: service.price.toString(),
+      description: service.description || '',
+      buffer_after_minutes: service.buffer_after_minutes.toString(),
+      category: service.category || 'General'
+    })
+    setIsModalOpen(true)
   }
 
   const handleDeleteService = async (id: string) => {
@@ -125,7 +153,8 @@ export default function ServiciosPage() {
     if (!error) setServices(services.filter(s => s.id !== id))
   }
 
-  const handleContinue = async () => {
+  // --- SINCRONIZAR CON IA (PROMPT UPDATE) ---
+  const handleSyncWithAI = async () => {
     if (!orgData || services.length === 0) return;
     setIsLoadingAction(true);
 
@@ -153,7 +182,7 @@ export default function ServiciosPage() {
             .replace(/{{hours}}/g, scheduleSummary)
             .replace(/{{services}}/g, servicesSummary);
 
-        const { error: updateError } = await supabase
+        await supabase
             .from('organizations')
             .update({
                 chat_context: {
@@ -164,12 +193,14 @@ export default function ServiciosPage() {
             })
             .eq('id', orgData.id);
 
-        if (updateError) throw updateError;
-        router.push('/onboarding/planes');
+        if (isManagementMode) {
+          alert("✨ VORA ha sido actualizada con los nuevos servicios.");
+        } else {
+          router.push('/onboarding/planes');
+        }
 
     } catch (error: any) {
         console.error("❌ Error:", error.message);
-        alert("Error al finalizar: " + error.message);
     } finally {
         setIsLoadingAction(false);
     }
@@ -182,55 +213,64 @@ export default function ServiciosPage() {
   );
 
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col items-center p-6 md:p-12">
-      <OnboardingProgress currentStep={5} />
+    <div className={`min-h-screen bg-slate-50 flex flex-col items-center ${isManagementMode ? 'p-2' : 'p-6 md:p-12'}`}>
+      
+      {!isManagementMode && <OnboardingProgress currentStep={5} />}
 
-      <header className="mb-12 text-center flex flex-col items-center max-w-2xl">
+      <header className="mb-12 text-center flex flex-col items-center max-w-4xl w-full">
         <h1 className="text-4xl font-black text-rose-950 tracking-tighter leading-tight">
-            <span className="text-rose-700">Tus Servicios</span>
+            {isManagementMode ? 'Gestionar ' : 'Configurar '} <span className="text-rose-700">Servicios</span>
         </h1>
-        <p className="text-slate-600 mt-3 font-medium text-lg">Configura lo que VORA ofrecerá a tus clientes.</p>
+        <p className="text-slate-600 mt-3 font-medium text-lg">
+          {isManagementMode ? 'Modifica los precios y tiempos de tu catálogo.' : 'Configura lo que VORA ofrecerá a tus clientes.'}
+        </p>
 
+        <div className="flex flex-wrap justify-center gap-4 mt-8 w-full">
+          <button onClick={() => { resetForm(); setIsModalOpen(true); }} className="bg-white text-rose-700 border-2 border-rose-100 px-6 py-3 rounded-2xl font-black hover:bg-rose-50 shadow-sm flex items-center gap-2 transition-all active:scale-95">
+            <Plus size={20} strokeWidth={3} /> Nuevo Servicio
+          </button>
+          
+          <button onClick={handleSyncWithAI} disabled={services.length === 0 || isLoadingAction} className="bg-rose-700 bg-gradient-to-r from-rose-700 to-rose-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg disabled:opacity-50 flex items-center gap-2 transition-all active:scale-95">
+            {isManagementMode ? <><Zap size={18} /> Sincronizar con VORA</> : 'Continuar a Planes →'}
+          </button>
+        </div>
+        
+        {/* Toggle Precios */}
         <div className="mt-6 flex items-center gap-4 bg-white px-6 py-3 rounded-full border border-slate-100 shadow-sm">
-            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">¿Vora debe mostrar precios?</span>
+            <span className="text-[10px] font-black uppercase tracking-widest text-slate-500">¿Mostrar precios en chat?</span>
             <button 
                 onClick={() => setShowPricesOnChat(!showPricesOnChat)}
-                className={`w-12 h-6 rounded-full transition-all relative ${showPricesOnChat ? 'bg-rose-600' : 'bg-slate-300'}`}
+                className={`w-10 h-5 rounded-full transition-all relative ${showPricesOnChat ? 'bg-rose-600' : 'bg-slate-300'}`}
             >
-                <div className={`absolute top-1 w-4 h-4 bg-white rounded-full transition-all ${showPricesOnChat ? 'right-1' : 'left-1'}`}></div>
+                <div className={`absolute top-0.5 w-4 h-4 bg-white rounded-full transition-all ${showPricesOnChat ? 'right-1' : 'left-1'}`}></div>
             </button>
             <span className="text-[10px] font-black uppercase text-rose-700">{showPricesOnChat ? 'SÍ' : 'NO'}</span>
         </div>
-
-        <div className="flex flex-wrap justify-center gap-4 mt-8">
-          <button onClick={() => setIsModalOpen(true)} className="bg-white text-rose-700 border-2 border-rose-100 px-6 py-3 rounded-2xl font-black hover:bg-rose-50 shadow-sm flex items-center gap-2">
-            <span className="text-2xl">+</span> Nuevo Servicio
-          </button>
-          <button onClick={handleContinue} disabled={services.length === 0 || isLoadingAction} className="bg-rose-700 bg-gradient-to-r from-rose-700 to-rose-600 text-white px-8 py-3 rounded-2xl font-black shadow-lg disabled:opacity-50">
-            {isLoadingAction ? 'Procesando...' : 'Continuar a Planes →'}
-          </button>
-        </div>
       </header>
 
-      <div className="grid gap-6 w-full max-w-6xl md:grid-cols-2 lg:grid-cols-3">
+      {/* GRID DE SERVICIOS */}
+      <div className="grid gap-6 w-full max-w-7xl md:grid-cols-2 lg:grid-cols-3">
         {services.length === 0 && (
           <div className="col-span-full py-24 text-center border-4 border-dashed border-slate-200 rounded-[40px] bg-white/50">
-            <p className="text-slate-400 font-bold text-lg px-10">Aún no hay servicios.</p>
+            <p className="text-slate-400 font-bold text-lg px-10">Aún no hay servicios configurados.</p>
           </div>
         )}
         
         {services.map(service => (
-          <div key={service.id} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-md transition-all relative flex flex-col justify-between">
-            <div className="absolute top-4 right-4">
-                <button onClick={() => handleDeleteService(service.id)} className="p-2 text-slate-300 hover:text-rose-600 transition-colors">
-                    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18"/><path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6"/><path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"/></svg>
+          <div key={service.id} className="bg-white p-8 rounded-[32px] border border-slate-100 shadow-sm hover:shadow-xl transition-all relative flex flex-col justify-between group">
+            <div className="absolute top-4 right-4 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                <button onClick={() => openEditModal(service)} className="p-2 text-slate-400 hover:text-emerald-600 transition-colors">
+                  <Edit3 size={18} />
+                </button>
+                <button onClick={() => handleDeleteService(service.id)} className="p-2 text-slate-400 hover:text-rose-600 transition-colors">
+                  <Trash2 size={18} />
                 </button>
             </div>
             <div>
                 <span className="text-[10px] font-black text-rose-400 uppercase tracking-widest bg-rose-50 px-3 py-1 rounded-full mb-4 inline-block">
-                    {service.is_active ? 'Activo' : 'Inactivo'}
+                    {service.category || 'General'}
                 </span>
-                <h3 className="font-black text-2xl text-rose-950 mb-2">{service.service_name}</h3>
+                <h3 className="font-black text-2xl text-rose-950 mb-2 leading-tight">{service.service_name}</h3>
                 <p className="text-slate-500 text-sm font-medium line-clamp-2 mb-6">{service.description || 'Sin descripción.'}</p>
             </div>
             <div className="grid grid-cols-3 gap-2 pt-6 border-t border-slate-50">
@@ -251,35 +291,32 @@ export default function ServiciosPage() {
         ))}
       </div>
 
+      {/* MODAL (CREAR / EDITAR) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-rose-950/20 backdrop-blur-md flex items-center justify-center p-4 z-50">
           <div className="bg-white rounded-[40px] shadow-2xl p-10 max-w-lg w-full border border-rose-50 overflow-y-auto max-h-[90vh]">
-            <h2 className="text-3xl font-black text-rose-950 mb-6 tracking-tighter">Nuevo Servicio</h2>
+            <h2 className="text-3xl font-black text-rose-950 mb-6 tracking-tighter">
+              {editingServiceId ? 'Editar Servicio' : 'Nuevo Servicio'}
+            </h2>
             <div className="space-y-4">
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Nombre</label>
-                <input className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-slate-900 font-bold outline-none"
+                <input className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-slate-900 font-bold outline-none focus:border-rose-300 transition-all"
                   value={form.service_name} onChange={e => setForm({...form, service_name: e.target.value})} placeholder="Ej. Manicura Completa" />
               </div>
               
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Horas</label>
-                    <select 
-                        className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-slate-900 font-bold"
-                        value={form.duration_hours}
-                        onChange={e => setForm({...form, duration_hours: parseInt(e.target.value)})}
-                    >
+                    <select className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-slate-900 font-bold outline-none"
+                        value={form.duration_hours} onChange={e => setForm({...form, duration_hours: parseInt(e.target.value)})}>
                         {[0,1,2,3,4,5,6,7,8].map(h => <option key={h} value={h}>{h} h</option>)}
                     </select>
                 </div>
                 <div className="space-y-1">
                     <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Minutos</label>
-                    <select 
-                        className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-slate-900 font-bold"
-                        value={form.duration_mins}
-                        onChange={e => setForm({...form, duration_mins: parseInt(e.target.value)})}
-                    >
+                    <select className="w-full bg-slate-50 border-slate-200 border rounded-2xl p-4 text-slate-900 font-bold outline-none"
+                        value={form.duration_mins} onChange={e => setForm({...form, duration_mins: parseInt(e.target.value)})}>
                         {[0,15,30,45].map(m => <option key={m} value={m}>{m} min</option>)}
                     </select>
                 </div>
@@ -304,14 +341,14 @@ export default function ServiciosPage() {
 
               <div className="space-y-1">
                 <label className="text-[10px] font-black text-slate-400 uppercase tracking-widest ml-1">Descripción</label>
-                <textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 font-medium h-24 outline-none"
+                <textarea className="w-full bg-slate-50 border border-slate-200 rounded-2xl p-4 text-slate-900 font-medium h-24 outline-none focus:border-rose-300 resize-none"
                   value={form.description} onChange={e => setForm({...form, description: e.target.value})} placeholder="Detalles del servicio..." />
               </div>
 
               <div className="flex gap-4 mt-8">
-                <button onClick={() => setIsModalOpen(false)} className="flex-1 py-4 font-black text-slate-400">Cancelar</button>
-                <button onClick={handleAddService} disabled={isLoadingAction || !form.service_name} className="flex-1 bg-rose-700 text-white py-4 rounded-2xl font-black shadow-lg">
-                  {isLoadingAction ? 'Guardando...' : 'Crear Servicio'}
+                <button onClick={() => { setIsModalOpen(false); resetForm(); }} className="flex-1 py-4 font-black text-slate-400">Cancelar</button>
+                <button onClick={handleSaveService} disabled={isLoadingAction || !form.service_name} className="flex-1 bg-rose-700 text-white py-4 rounded-3xl font-black shadow-lg flex items-center justify-center gap-2">
+                  <Save size={18} /> {isLoadingAction ? 'Guardando...' : (editingServiceId ? 'Actualizar' : 'Crear')}
                 </button>
               </div>
             </div>
