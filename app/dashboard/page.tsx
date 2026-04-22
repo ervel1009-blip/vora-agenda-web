@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from 'react'
 import { createClient } from '@/lib/supabase/client'
+import { useRouter } from 'next/navigation'
 import { 
   Activity, AlertCircle, CheckCircle2, 
   Users, Calendar, ShieldCheck, TrendingUp, Clock
@@ -9,8 +10,10 @@ import {
 
 export default function DashboardHomePage() {
   const supabase = createClient()
+  const router = useRouter()
   const [data, setData] = useState<any>(null)
   const [specialistsCount, setSpecialistsCount] = useState(0)
+  const [appointments, setAppointments] = useState<any[]>([])
   const [stats, setStats] = useState({ today: 0, month: 0 })
   const [logs, setLogs] = useState<any[]>([])
   const [isLoading, setIsLoading] = useState(true)
@@ -18,64 +21,71 @@ export default function DashboardHomePage() {
   useEffect(() => {
     const fetchDashboardData = async () => {
       const { data: { user } } = await supabase.auth.getUser()
-      const { data: org } = await supabase.from('organizations').select('*').eq('owner_id', user?.id).single()
+      if (!user) return
+
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('*')
+        .eq('owner_id', user.id)
+        .single()
       
       if (org) {
         setData(org)
         
         // 1. Conteo de Especialistas
-        const { count: sCount } = await supabase.from('specialists').select('*', { count: 'exact', head: true }).eq('organization_id', org.id)
+        const { count: sCount } = await supabase
+          .from('specialists')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
         setSpecialistsCount(sCount || 0)
 
-      
-        // 2. Métricas de Citas (Confirmadas en appointments_v_nexus)
-const now = new Date();
-const todayStart = new Date(now.setHours(0,0,0,0)).toISOString();
-const todayEnd = new Date(now.setHours(23,59,59,999)).toISOString();
-const firstDayMonth = new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString();
-const [appointments, setAppointments] = useState<any[]>([])
+        // 2. Rango de Fechas para Citas (Hoy y Mes)
+        const now = new Date()
+        const todayStart = new Date(new Date(now).setHours(0,0,0,0)).toISOString()
+        const todayEnd = new Date(new Date(now).setHours(23,59,59,999)).toISOString()
+        const firstDayMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
 
-// Conteo de Hoy
-const { count: countToday, error: errorToday } = await supabase
-  .from('appointments_v_nexus')
-  .select('*', { count: 'exact', head: true })
-  .eq('organization_id', org.id) // <-- Cambiado de org_id a organization_id
-  .gte('start_time', todayStart)
-  .lte('start_time', todayEnd);
+        // 3. Métricas de Citas (Conteo Hoy)
+        const { count: countToday } = await supabase
+          .from('appointments_v_nexus')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+          .gte('start_time', todayStart)
+          .lte('start_time', todayEnd)
 
-// Conteo del Mes
-const { count: countMonth, error: errorMonth } = await supabase
-  .from('appointments_v_nexus')
-  .select('*', { count: 'exact', head: true })
-  .eq('organization_id', org.id) // <-- Cambiado de org_id a organization_id
-  .gte('start_time', firstDayMonth);
+        // 4. Métricas de Citas (Conteo Mes)
+        const { count: countMonth } = await supabase
+          .from('appointments_v_nexus')
+          .select('*', { count: 'exact', head: true })
+          .eq('organization_id', org.id)
+          .gte('start_time', firstDayMonth)
 
+        setStats({ today: countToday || 0, month: countMonth || 0 })
 
-const { data: todayAppts, error: apptError } = await supabase
-  .from('appointments_v_nexus')
-  .select(`
-    id, 
-    start_time, 
-    reason, 
-    estimated_price,
-    specialists (name)
-  `)
-  .eq('organization_id', org.id)
-  .gte('start_time', todayStart)
-  .lte('start_time', todayEnd)
-  .order('start_time', { ascending: true });
+        // 5. Citas Detalladas para el Timeline
+        const { data: todayAppts } = await supabase
+          .from('appointments_v_nexus')
+          .select(`
+            id, 
+            start_time, 
+            reason, 
+            estimated_price,
+            specialists (name)
+          `)
+          .eq('organization_id', org.id)
+          .gte('start_time', todayStart)
+          .lte('start_time', todayEnd)
+          .order('start_time', { ascending: true })
 
-if (!apptError) setAppointments(todayAppts || []);
+        setAppointments(todayAppts || [])
 
-if (errorToday || errorMonth) {
-  console.error("❌ Error en RLS o Query:", errorToday || errorMonth);
-}
-
-setStats({ today: countToday || 0, month: countMonth || 0 });
-
-
-        // 3. Audit Logs
-        const { data: systemLogs } = await supabase.from('system_logs').select('*').eq('org_id', org.id).order('created_at', { ascending: false }).limit(4)
+        // 6. Audit Logs
+        const { data: systemLogs } = await supabase
+          .from('system_logs')
+          .select('*')
+          .eq('org_id', org.id)
+          .order('created_at', { ascending: false })
+          .limit(4)
         setLogs(systemLogs || [])
       }
       setIsLoading(false)
@@ -92,12 +102,12 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
   return (
     <div className="space-y-8 max-w-7xl mx-auto text-slate-900 pb-10 px-2">
       
-      {/* HEADER: STATUS PROFESIONAL */}
+      {/* HEADER */}
       <header className="flex flex-col lg:flex-row justify-between items-start lg:items-end gap-6">
         <div>
           <div className="flex items-center gap-2 mb-2">
             <div className="h-2 w-2 bg-emerald-500 rounded-full animate-pulse"></div>
-            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">Sistema Operativo VORA v1.0</span>
+            <span className="text-[9px] font-black text-slate-400 uppercase tracking-[0.3em]">AI Live Monitoring</span>
           </div>
           <h1 className="text-4xl font-black text-slate-950 tracking-tight">
             Dashboard <span className="text-emerald-600 italic">{data.name.replace('VORA - ', '')}</span>
@@ -107,7 +117,7 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
         <div className="bg-white border border-slate-200 px-6 py-4 rounded-[32px] shadow-sm flex items-center gap-4">
            <div>
              <p className="text-[9px] font-black text-slate-400 uppercase tracking-widest mb-0.5">Link de Agenda IA</p>
-             <span className="text-sm font-bold text-emerald-600 italic tracking-tight underline cursor-pointer">
+             <span className="text-sm font-bold text-emerald-600 italic tracking-tight">
                vora.ai/{data.id.slice(0,8).toUpperCase()}
              </span>
            </div>
@@ -120,7 +130,7 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
       {/* BENTO GRID */}
       <div className="grid grid-cols-1 md:grid-cols-4 gap-6">
         
-        {/* Card Ventas Principal */}
+        {/* Card Financiera */}
         <div className="md:col-span-2 bg-slate-950 p-10 rounded-[48px] text-white shadow-2xl flex flex-col justify-between relative overflow-hidden">
           <div className="absolute top-0 right-0 p-10 opacity-10">
             <TrendingUp size={120} />
@@ -155,7 +165,7 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
           <p className="text-[9px] font-black text-emerald-600 uppercase mt-4">Activos en plataforma</p>
         </div>
 
-        {/* Card Citas Confirmadas (NUEVA) */}
+        {/* Card Citas Confirmadas */}
         <div className="bg-emerald-600 p-8 rounded-[48px] text-white flex flex-col justify-between shadow-xl shadow-emerald-100">
           <div>
             <div className="w-12 h-12 bg-white/20 rounded-2xl flex items-center justify-center mb-6 text-white backdrop-blur-md">
@@ -172,14 +182,13 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
           </div>
         </div>
 
-       {/* AGENDA Y LOGS */}
+        {/* AGENDA Y LOGS */}
         <div className="md:col-span-4 grid grid-cols-1 lg:grid-cols-2 gap-8">
           
-          {/* Agenda de Hoy Dinámica */}
+          {/* Agenda de Hoy */}
           <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm overflow-hidden">
             <div className="flex justify-between items-center mb-10">
                <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">Agenda de Hoy</h3>
-               {/* Badge de conteo rápido */}
                <span className="bg-emerald-50 text-emerald-600 px-3 py-1 rounded-full text-[9px] font-black uppercase tracking-tighter">
                  {appointments.length} Citas
                </span>
@@ -187,20 +196,16 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
 
             <div className="space-y-6">
               {appointments.length === 0 ? (
-                /* Estado vacío si no hay citas */
-                <div className="py-16 border border-dashed border-slate-100 rounded-[32px] bg-slate-50/40 flex flex-col items-center">
+                <div className="py-16 border border-dashed border-slate-100 rounded-[32px] bg-slate-50/40 flex flex-col items-center text-center">
                   <Calendar className="text-slate-200 mb-4" size={40} />
-                  <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest text-center">
-                    Sincronizado • Sin citas para hoy
+                  <p className="text-slate-400 font-bold text-[10px] uppercase tracking-widest px-4">
+                    Sin citas para hoy • Sincronización activa
                   </p>
                 </div>
               ) : (
-                /* Listado estilo Timeline */
                 appointments.map((appt) => (
                   <div key={appt.id} className="relative pl-8 pb-6 border-l border-slate-100 last:pb-0">
-                    {/* El Punto del Timeline */}
                     <div className="absolute -left-1.5 top-1 h-3 w-3 bg-emerald-500 rounded-full border-2 border-white shadow-sm"></div>
-                    
                     <div className="flex justify-between items-start bg-slate-50/50 p-4 rounded-[24px] border border-transparent hover:border-emerald-100 transition-all group">
                       <div>
                         <div className="flex items-center gap-2 mb-1">
@@ -227,7 +232,6 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
               )}
             </div>
             
-            {/* Botón de acceso rápido a la sección completa */}
             {appointments.length > 0 && (
               <button 
                 onClick={() => router.push('/dashboard/calendario')}
@@ -238,7 +242,7 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
             )}
           </div>
 
-          {/* Audit Log (Mantenido y Pulido) */}
+          {/* Audit Log */}
           <div className="bg-white p-8 rounded-[48px] border border-slate-100 shadow-sm">
             <div className="flex justify-between items-center mb-10">
               <h3 className="text-[10px] font-black text-slate-400 uppercase tracking-[0.3em]">IA Audit Log</h3>
@@ -265,8 +269,9 @@ setStats({ today: countToday || 0, month: countMonth || 0 });
             </div>
           </div>
         </div>
+      </div>
 
-      {/* FOOTER CORPORATIVO */}
+      {/* FOOTER */}
       <footer className="text-center pt-10">
         <div className="h-px w-20 bg-slate-100 mx-auto mb-6"></div>
         <p className="text-slate-300 text-[9px] font-black uppercase tracking-[0.6em]">
